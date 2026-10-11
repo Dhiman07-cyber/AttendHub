@@ -1,16 +1,16 @@
-# Attendify — Product & Engineering Context
+# AttendHub — Product & Engineering Context
 
 > **Status:** Product source of truth
 > **Project:** Student-focused attendance tracking and planning utility
 > **Initial platform:** Flutter mobile application
-> **Backend:** FastAPI + PostgreSQL
+> **Backend:** FastAPI + PostgreSQL (Supabase Hosted)
 > **Primary UX principle:** A student should understand their attendance state in seconds and record a normal day's attendance in roughly 1–2 minutes.
 
 ## 1. Product Overview
 
-**Attendify** is a student-side attendance utility that gives students an independent, transparent and useful view of their academic attendance. It is not the institution's official attendance system. It allows a student to maintain a personal record from the timetable, actual class sessions, holidays and attendance entries they provide.
+**AttendHub** is a student-side attendance utility that gives students an independent, transparent and useful view of their academic attendance. It is not the institution's official attendance system. It allows a student to maintain a personal record from the timetable, actual class sessions, holidays and attendance entries they provide.
 
-The product is valuable because a student may otherwise depend completely on faculty-maintained records and may not notice an incorrect entry until the attendance becomes critical. Attendify therefore does two things: it keeps a personal attendance history and converts the raw numbers into useful actions such as how many classes are needed to reach a threshold or how many can be missed while remaining above it.
+The product is valuable because a student may otherwise depend completely on faculty-maintained records and may not notice an incorrect entry until the attendance becomes critical. AttendHub therefore does two things: it keeps a personal attendance history and converts the raw numbers into useful actions such as how many classes are needed to reach a threshold or how many can be missed while remaining above it.
 
 The product should feel like a polished consumer productivity application, not a traditional university ERP. It must be calm, fast, accurate, readable and predictable.
 
@@ -375,4 +375,4 @@ A student should be able to:
 
 ## 26. Product Definition
 
-Attendify is successful when it feels less like “enter numbers and calculate percentage” and more like a reliable academic companion that turns a student's routine and attendance records into a clear current status and a useful next action.
+AttendHub is successful when it feels less like “enter numbers and calculate percentage” and more like a reliable academic companion that turns a student's routine and attendance records into a clear current status and a useful next action.
