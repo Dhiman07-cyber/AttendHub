@@ -1,0 +1,174 @@
+import 'dart:ui';
+import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart';
+import '../../core/theme/app_colors.dart';
+
+class PersistentTopBar extends StatelessWidget {
+  final bool isSecondary;
+  final String title;
+  final String? subtitle;
+  final String avatarInitial;
+  final VoidCallback onMenuOrBack;
+  final VoidCallback onNotificationTap;
+  final VoidCallback onAvatarTap;
+
+  const PersistentTopBar({
+    super.key,
+    required this.isSecondary,
+    required this.title,
+    this.subtitle,
+    this.avatarInitial = 'D',
+    required this.onMenuOrBack,
+    required this.onNotificationTap,
+    required this.onAvatarTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final barContent = Container(
+      padding: EdgeInsets.only(
+        top: MediaQuery.of(context).padding.top + 6,
+        bottom: 8,
+        left: 16,
+        right: 16,
+      ),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: kIsWeb ? 0.95 : 0.88),
+        border: Border(
+          bottom: BorderSide(
+            color: AppColors.divider.withValues(alpha: 0.6),
+            width: 1,
+          ),
+        ),
+      ),
+      child: Row(
+            children: [
+              // Left action: Hamburger or Back
+              IconButton(
+                icon: Icon(
+                  isSecondary ? Icons.arrow_back_ios_new_rounded : Icons.menu_rounded,
+                  color: AppColors.ink,
+                  size: isSecondary ? 20 : 22,
+                ),
+                padding: EdgeInsets.zero,
+                constraints: const BoxConstraints(minWidth: 44, minHeight: 44),
+                onPressed: onMenuOrBack,
+                tooltip: isSecondary ? 'Back' : 'Open Menu',
+              ),
+              const SizedBox(width: 8),
+
+              // Center: Title & optional subtitle
+              Expanded(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      style: const TextStyle(
+                        fontFamily: 'PlayfairDisplay',
+                        fontSize: 18,
+                        fontWeight: FontWeight.w700,
+                        color: AppColors.ink,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    if (subtitle != null && subtitle!.isNotEmpty)
+                      Text(
+                        subtitle!,
+                        style: const TextStyle(
+                          fontSize: 11,
+                          color: AppColors.inkMuted,
+                          fontWeight: FontWeight.w500,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                  ],
+                ),
+              ),
+
+              // Right actions: Notification Bell and Profile Avatar
+              // 1. Notification Bell
+              GestureDetector(
+                onTap: onNotificationTap,
+                child: Container(
+                  width: 40,
+                  height: 40,
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.9),
+                    shape: BoxShape.circle,
+                    border: Border.all(color: AppColors.divider, width: 1),
+                  ),
+                  child: Stack(
+                    alignment: Alignment.center,
+                    children: [
+                      const Icon(
+                        Icons.notifications_none_rounded,
+                        size: 20,
+                        color: AppColors.ink,
+                      ),
+                      Positioned(
+                        top: 9,
+                        right: 9,
+                        child: Container(
+                          width: 8,
+                          height: 8,
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFDE6854),
+                            shape: BoxShape.circle,
+                            border: Border.all(color: Colors.white, width: 1.5),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(width: 10),
+
+              // 2. Profile Avatar
+              GestureDetector(
+                onTap: onAvatarTap,
+                child: Container(
+                  width: 40,
+                  height: 40,
+                  decoration: const BoxDecoration(
+                    color: Color(0xFF4A2421), // Approved reference deep brown
+                    shape: BoxShape.circle,
+                    boxShadow: [
+                      BoxShadow(
+                        color: Color.fromRGBO(74, 36, 33, 0.2),
+                        blurRadius: 6,
+                        offset: Offset(0, 2),
+                      ),
+                    ],
+                  ),
+                  alignment: Alignment.center,
+                  child: Text(
+                    avatarInitial,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 16,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        );
+
+    return RepaintBoundary(
+      child: ClipRect(
+        child: kIsWeb
+            ? barContent
+            : BackdropFilter(
+                filter: ImageFilter.blur(sigmaX: 8, sigmaY: 8),
+                child: barContent,
+              ),
+      ),
+    );
+  }
+}
