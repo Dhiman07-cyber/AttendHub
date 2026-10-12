@@ -109,7 +109,7 @@ class SubjectsNotifier extends StateNotifier<SubjectsState> {
     return false;
   }
 
-  Future<bool> archiveSubject(String id) async {
+  Future<bool> deleteSubject(String id) async {
     try {
       final resp = await _client.dio.delete('${ApiEndpoints.subjects}/$id');
       if (!mounted) return false;
@@ -126,10 +126,12 @@ class SubjectsNotifier extends StateNotifier<SubjectsState> {
       }
     } catch (e) {
       if (!mounted) return false;
-      state = state.copyWith(errorMessage: 'Failed to archive subject.');
+      state = state.copyWith(errorMessage: 'Failed to delete subject.');
     }
     return false;
   }
+
+  Future<bool> archiveSubject(String id) => deleteSubject(id);
 }
 
 final subjectsProvider = StateNotifierProvider<SubjectsNotifier, SubjectsState>((ref) {

@@ -290,7 +290,7 @@ class SubjectDetailScreen extends ConsumerWidget {
 
             const SizedBox(height: 24),
 
-            // Archive / Lifecycle Action Card
+            // Delete Subject Action Card
             LiquidGlassCard(
               padding: const EdgeInsets.all(16),
               child: Column(
@@ -301,16 +301,16 @@ class SubjectDetailScreen extends ConsumerWidget {
                       Container(
                         padding: const EdgeInsets.all(6),
                         decoration: BoxDecoration(
-                          color: const Color(0xFFF3ECE7),
+                          color: const Color(0xFFFDE8E8),
                           borderRadius: BorderRadius.circular(8),
                         ),
-                        child: const Icon(Icons.archive_outlined,
-                            size: 18, color: AppColors.inkSecondary),
+                        child: const Icon(Icons.delete_outline_rounded,
+                            size: 18, color: AppColors.coral),
                       ),
                       const SizedBox(width: 10),
                       const Expanded(
                         child: Text(
-                          'Subject Lifecycle & Archiving',
+                          'Delete Subject',
                           style: TextStyle(
                               fontWeight: FontWeight.w700,
                               fontSize: 13,
@@ -321,7 +321,7 @@ class SubjectDetailScreen extends ConsumerWidget {
                   ),
                   const SizedBox(height: 8),
                   const Text(
-                    'Archiving deactivates this subject from future routines while safely preserving historical attendance records and semester statistics.',
+                    'Remove this subject from your semester timetable and active subjects list. Historical attendance totals will remain preserved.',
                     style: TextStyle(
                         fontSize: 11.5,
                         color: AppColors.inkMuted,
@@ -338,10 +338,10 @@ class SubjectDetailScreen extends ConsumerWidget {
                             borderRadius: BorderRadius.circular(10)),
                         padding: const EdgeInsets.symmetric(vertical: 10),
                       ),
-                      icon: const Icon(Icons.archive_outlined,
+                      icon: const Icon(Icons.delete_outline_rounded,
                           color: AppColors.coral, size: 16),
                       label: const Text(
-                        'Archive Subject Safely',
+                        'Delete Subject',
                         style: TextStyle(
                             color: AppColors.coral,
                             fontWeight: FontWeight.w700,
@@ -351,10 +351,10 @@ class SubjectDetailScreen extends ConsumerWidget {
                         showDialog(
                           context: context,
                           builder: (dialogCtx) => AlertDialog(
-                            title: const Text('Archive Subject'),
+                            title: const Text('Delete Subject'),
                             content: Text(
-                              'Are you sure you want to archive "${subject.name}"?\n\n'
-                              'Historical attendance records will be safely preserved in your overall semester totals.',
+                              'Are you sure you want to delete "${subject.name}"?\n\n'
+                              'This will remove the subject from your timetable and active subjects.',
                             ),
                             actions: [
                               TextButton(
@@ -366,27 +366,30 @@ class SubjectDetailScreen extends ConsumerWidget {
                                   Navigator.pop(dialogCtx);
                                   final success = await ref
                                       .read(subjectsProvider.notifier)
-                                      .archiveSubject(subject.id);
+                                      .deleteSubject(subject.id);
                                   if (context.mounted) {
                                     if (success) {
                                       ScaffoldMessenger.of(context).showSnackBar(
                                         SnackBar(
-                                          content: Text('Archived "${subject.name}".'),
+                                          content: Text('Deleted "${subject.name}".'),
                                         ),
                                       );
                                       Navigator.pop(context);
                                     } else {
                                       ScaffoldMessenger.of(context).showSnackBar(
                                         const SnackBar(
-                                          content: Text('Failed to archive subject.'),
+                                          content: Text('Failed to delete subject.'),
                                         ),
                                       );
                                     }
                                   }
                                 },
                                 child: const Text(
-                                  'Archive',
-                                  style: TextStyle(color: AppColors.coral),
+                                  'Delete',
+                                  style: TextStyle(
+                                    color: AppColors.coral,
+                                    fontWeight: FontWeight.w700,
+                                  ),
                                 ),
                               ),
                             ],

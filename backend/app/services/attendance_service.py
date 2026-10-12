@@ -259,7 +259,8 @@ async def bulk_save_attendance(
     user_id: str,
     payload: AttendanceBulkMarkRequest
 ) -> AttendanceSaveResult:
-    if not payload.items:
+    items = payload.items or payload.records or []
+    if not items:
         return AttendanceSaveResult(
             updated_count=0,
             message="No attendance items provided.",
@@ -274,7 +275,7 @@ async def bulk_save_attendance(
     # Determine default target date from payload or today
     bulk_date = payload.date or date.today()
 
-    for item in payload.items:
+    for item in items:
         item_date = item.date or bulk_date
         validate_attendance_edit_window(item_date)
 
@@ -313,7 +314,10 @@ async def bulk_save_attendance(
                 ClassSession.semester_id == active_sem.id,
                 ClassSession.subject_id == subj_obj.id,
                 ClassSession.date == item_date,
-                ClassSession.start_time == tt_obj.start_time
+                or_(
+                    ClassSession.timetable_entry_id == tt_id,
+                    ClassSession.start_time == tt_obj.start_time
+                )
             )
             existing_sess_res = await db.execute(existing_sess_stmt)
             existing_sess = existing_sess_res.scalar_one_or_none()
@@ -325,6 +329,7 @@ async def bulk_save_attendance(
                     semester_id=active_sem.id,
                     subject_id=subj_obj.id,
                     date=item_date,
+                    timetable_entry_id=tt_obj.id,
                     start_time=tt_obj.start_time,
                     end_time=tt_obj.end_time,
                     faculty_name=tt_obj.faculty_name or subj_obj.faculty_name,

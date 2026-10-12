@@ -56,7 +56,7 @@ void main() {
 
     expect(tester.takeException(), isNull);
     expect(find.text('CSE-501-ADV'), findsOneWidget);
-    expect(find.text('Archive Subject Safely'), findsOneWidget);
+    expect(find.text('Delete Subject'), findsWidgets);
   });
 
   testWidgets('SubjectDetailScreen renders without RenderFlex overflow at 360px and 412px and 430px', (tester) async {

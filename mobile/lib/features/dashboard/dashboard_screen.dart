@@ -2071,10 +2071,14 @@ class DashboardScreen extends ConsumerWidget {
                     ),
                   );
                 } else {
+                  final err = ref.read(selectedDateAttendanceProvider).errorMessage;
                   ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
+                    SnackBar(
                       content: Text(
-                          'Failed to save attendance. Selections kept for retry.'),
+                        err != null && err.isNotEmpty
+                            ? err
+                            : 'Failed to save attendance. Selections kept for retry.',
+                      ),
                       backgroundColor: AppColors.coral,
                       behavior: SnackBarBehavior.floating,
                     ),

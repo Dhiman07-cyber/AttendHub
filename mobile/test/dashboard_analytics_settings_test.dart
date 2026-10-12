@@ -12,6 +12,7 @@ import 'package:attendhub/shared/models/analytics_model.dart';
 import 'package:attendhub/shared/models/subject_model.dart';
 import 'package:attendhub/shared/models/user_model.dart';
 import 'package:attendhub/features/profile/providers/profile_provider.dart';
+import 'package:attendhub/shared/widgets/bottom_nav_bar.dart';
 
 void main() {
   group('AttendHub Dashboard, Analytics & Settings Tests', () {
@@ -174,6 +175,126 @@ void main() {
 
       // Zero exceptions thrown
       expect(tester.takeException(), isNull);
+    });
+
+    testWidgets(
+        'AnalyticsScreen Subject-wise tab renders without RenderFlex overflow on iPhone SE (375px) and Ultra-Compact (320px)',
+        (tester) async {
+      final dummyAnalytics = AnalyticsOverviewModel(
+        semesterId: 'sem-5',
+        semesterLabel: '5th Semester',
+        overallPercentage: 78.4,
+        totalAttended: 120,
+        totalAbsent: 33,
+        totalConducted: 153,
+        hasData: true,
+        status: 'SAFE',
+        statusLabel: 'Safe',
+        personalTarget: 75.0,
+        minimumRequirement: 75.0,
+        monthOverMonthChange: 6.2,
+        maxSafeAbsences: 4,
+        totalRecoveryClassesNeeded: 6,
+        totalSafeAbsencesMargin: 4,
+        insights: [],
+        trends: [],
+        subjects: [
+          SubjectModel(
+            id: 'sub-1',
+            semesterId: 'sem-5',
+            name: 'Computer Networks and Systems Engineering',
+            code: 'CS501',
+            color: '#72A68A',
+            icon: 'wifi',
+            isActive: true,
+            attended: 28,
+            conducted: 32,
+            percentage: 87.5,
+            status: 'SAFE',
+            statusLabel: 'Safe',
+            maxSafeAbsences: 4,
+          ),
+          SubjectModel(
+            id: 'sub-2',
+            semesterId: 'sem-5',
+            name: 'Mathematics and Discrete Optimization Structures',
+            code: 'MA501',
+            color: '#C96E5B',
+            icon: 'functions',
+            isActive: true,
+            attended: 20,
+            conducted: 30,
+            percentage: 66.7,
+            status: 'CRITICAL',
+            statusLabel: 'Critical',
+            classesNeededForMin: 6,
+            maxSafeAbsences: 0,
+          ),
+        ],
+      );
+
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+        tester.view.resetDevicePixelRatio();
+      });
+
+      tester.view.physicalSize = const Size(375.0, 667.0);
+      tester.view.devicePixelRatio = 1.0;
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            analyticsProvider.overrideWith((ref) => dummyAnalytics),
+          ],
+          child: MaterialApp(
+            theme: AppTheme.lightTheme,
+            home: AnalyticsScreen(
+              onOpenDrawer: () {},
+              onNavigateToProfile: () {},
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      // Tap Subject-wise tab
+      await tester.tap(find.text('Subject-wise'));
+      await tester.pumpAndSettle();
+
+      expect(tester.takeException(), isNull);
+      expect(find.text('All Subjects (2)'), findsOneWidget);
+      expect(find.text('Safe to miss 4 classes'), findsOneWidget);
+      expect(find.text('Need 6 to reach 75%'), findsOneWidget);
+    });
+
+    testWidgets('LiquidGlassBottomNav drag-and-release switches tab to destination', (tester) async {
+      int selectedTab = 0;
+
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: AppTheme.lightTheme,
+          home: Scaffold(
+            bottomNavigationBar: LiquidGlassBottomNav(
+              currentIndex: selectedTab,
+              onTap: (idx) => selectedTab = idx,
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      // Drag from Dashboard (index 0) to Routine (index 1) and release
+      final dashboardFinder = find.text('Dashboard');
+      final routineFinder = find.text('Routine');
+
+      final gesture = await tester.startGesture(tester.getCenter(dashboardFinder));
+      await tester.pump();
+      await gesture.moveTo(tester.getCenter(routineFinder));
+      await tester.pump();
+      await gesture.up();
+      await tester.pumpAndSettle();
+
+      expect(selectedTab, equals(1));
     });
 
     testWidgets('SettingsScreen renders 75% target defaults and preferences',
