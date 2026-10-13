@@ -113,14 +113,35 @@ class _AttendHubAppState extends ConsumerState<AttendHubApp> {
 
   Future<void> _restoreNavState() async {
     final nav = await LocalStorage().getNavState();
+    const validSecondaryRoutes = {
+      'analytics',
+      'holidays',
+      'profile',
+      'settings',
+      'setup',
+    };
+    final safeTabIndex = nav.tabIndex.clamp(0, 4).toInt();
+    final safeSecondaryRoute = nav.secondaryRoute != null &&
+            validSecondaryRoutes.contains(nav.secondaryRoute)
+        ? nav.secondaryRoute
+        : null;
+    // Older builds could persist a route name that is no longer rendered.
+    // That route was then placed in the full-screen overlay and returned
+    // SizedBox.shrink(), leaving users with only the background visible.
+    if (safeTabIndex != nav.tabIndex || safeSecondaryRoute != nav.secondaryRoute) {
+      await LocalStorage().saveNavState(
+        tabIndex: safeTabIndex,
+        secondaryRoute: safeSecondaryRoute,
+      );
+    }
     if (mounted) {
       setState(() {
-        _activeTabIndex = nav.tabIndex;
-        _secondaryRoute = nav.secondaryRoute;
+        _activeTabIndex = safeTabIndex;
+        _secondaryRoute = safeSecondaryRoute;
       });
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (_pageController.hasClients && _pageController.page?.round() != nav.tabIndex) {
-          _pageController.jumpToPage(nav.tabIndex);
+        if (_pageController.hasClients && _pageController.page?.round() != safeTabIndex) {
+          _pageController.jumpToPage(safeTabIndex);
         }
       });
     }
@@ -504,7 +525,21 @@ class _AttendHubAppState extends ConsumerState<AttendHubApp> {
         onCancel: () => _setNavState(clearSecondary: true),
       );
     }
-    return const SizedBox.shrink();
+    // Never allow an unknown persisted route to render a blank full-screen
+    // overlay. Clear it and fall back to the primary dashboard content.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted && _secondaryRoute != null) {
+        _setNavState(clearSecondary: true);
+      }
+    });
+    return DashboardScreen(
+      onOpenDrawer: () => _scaffoldKey.currentState?.openDrawer(),
+      onNavigateToProfile: () => _setNavState(secondaryRoute: 'profile'),
+      onNavigateToToday: () => _setNavState(tabIndex: 1, clearSecondary: true),
+      onNavigateToAnalytics: () => _setNavState(tabIndex: 2, clearSecondary: true),
+      onNavigateToCalendar: () => _setNavState(tabIndex: 3, clearSecondary: true),
+      onOpenSetup: () => _setNavState(secondaryRoute: 'setup'),
+    );
   }
 
   void _showNotificationsSheet(BuildContext context) {
