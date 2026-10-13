@@ -1,0 +1,19 @@
+/// Application runtime configuration loaded securely via --dart-define / --dart-define-from-file.
+/// No secrets or credentials should ever be hardcoded directly into source files.
+class AppConfig {
+  /// Base API URL for AttendHub backend services.
+  static const String apiBaseUrl = String.fromEnvironment(
+    'API_BASE_URL',
+    defaultValue: 'http://127.0.0.1:8000/api/v1',
+  );
+
+  /// Google OAuth Web/Server Client ID used for requesting backend ID tokens.
+  /// Injected at compile/build time from environment; never hardcoded.
+  static const String googleServerClientId = String.fromEnvironment(
+    'GOOGLE_SERVER_CLIENT_ID',
+    defaultValue: '',
+  );
+
+  /// Whether Google authentication is configured for this build flavor.
+  static bool get isGoogleAuthEnabled => googleServerClientId.isNotEmpty;
+}

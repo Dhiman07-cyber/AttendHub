@@ -23,7 +23,6 @@ class LiquidGlassBottomNav extends StatefulWidget {
 class _LiquidGlassBottomNavState extends State<LiquidGlassBottomNav> {
   int? _hoveredIndex;
   Offset? _pointerDownPos;
-  bool _isDragging = false;
 
   int _getIndexFromPosition(double localX, double totalWidth) {
     if (totalWidth <= 0) return widget.currentIndex;
@@ -33,55 +32,45 @@ class _LiquidGlassBottomNavState extends State<LiquidGlassBottomNav> {
 
   void _onPointerDown(PointerDownEvent event, double totalWidth) {
     _pointerDownPos = event.localPosition;
-    _isDragging = false;
-    _hoveredIndex = _getIndexFromPosition(event.localPosition.dx, totalWidth);
+    final target = _getIndexFromPosition(event.localPosition.dx, totalWidth);
+    setState(() {
+      _hoveredIndex = target;
+    });
+    HapticFeedback.selectionClick();
   }
 
   void _onPointerMove(PointerMoveEvent event, double totalWidth) {
     if (_pointerDownPos == null) return;
-    final delta = (event.localPosition - _pointerDownPos!).distance;
-    if (delta > 8.0) {
-      if (!_isDragging) {
-        _isDragging = true;
+    // Cancel if dragged far outside vertically
+    if (event.localPosition.dy < -40 || event.localPosition.dy > 105) {
+      if (_hoveredIndex != null) {
+        setState(() => _hoveredIndex = null);
       }
-      // Cancel if dragged far outside vertically
-      if (event.localPosition.dy < -50 || event.localPosition.dy > 110) {
-        if (_hoveredIndex != null) {
-          setState(() => _hoveredIndex = null);
-        }
-        return;
-      }
+      return;
+    }
 
-      final newIdx = _getIndexFromPosition(event.localPosition.dx, totalWidth);
-      if (newIdx != _hoveredIndex) {
-        HapticFeedback.selectionClick();
-        setState(() => _hoveredIndex = newIdx);
-      }
+    final newIdx = _getIndexFromPosition(event.localPosition.dx, totalWidth);
+    if (newIdx != _hoveredIndex) {
+      HapticFeedback.selectionClick();
+      setState(() => _hoveredIndex = newIdx);
     }
   }
 
   void _onPointerUp(PointerUpEvent event, double totalWidth) {
-    if (_isDragging && _hoveredIndex != null) {
-      final target = _hoveredIndex!;
-      setState(() {
-        _hoveredIndex = null;
-        _isDragging = false;
-        _pointerDownPos = null;
-      });
+    final target = _hoveredIndex ?? _getIndexFromPosition(event.localPosition.dx, totalWidth);
+    if (event.localPosition.dy >= -40 && event.localPosition.dy <= 105) {
+      HapticFeedback.lightImpact();
       widget.onTap(target);
-    } else {
-      setState(() {
-        _hoveredIndex = null;
-        _isDragging = false;
-        _pointerDownPos = null;
-      });
     }
+    setState(() {
+      _hoveredIndex = null;
+      _pointerDownPos = null;
+    });
   }
 
   void _onPointerCancel(PointerCancelEvent event) {
     setState(() {
       _hoveredIndex = null;
-      _isDragging = false;
       _pointerDownPos = null;
     });
   }
@@ -151,44 +140,44 @@ class _LiquidGlassBottomNavState extends State<LiquidGlassBottomNav> {
   Widget _buildNavItem(int index, IconData icon, String label, int selectedIndex) {
     final isSelected = selectedIndex == index;
 
-    return GestureDetector(
-      onTap: () => widget.onTap(index),
-      behavior: HitTestBehavior.opaque,
-      child: Center(
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 140),
-          curve: Curves.easeOutCubic,
-          padding: EdgeInsets.symmetric(
-            horizontal: isSelected ? 10 : 6,
-            vertical: 6,
-          ),
-          decoration: BoxDecoration(
-            color: isSelected
-                ? AppColors.terracotta.withValues(alpha: 0.12)
-                : Colors.transparent,
-            borderRadius: AppRadii.radiusPill,
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(
-                icon,
-                size: 20,
-                color: isSelected ? AppColors.terracotta : AppColors.inkMuted,
-              ),
-              const SizedBox(height: 2),
-              Text(
+    return Center(
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 140),
+        curve: Curves.easeOutCubic,
+        padding: const EdgeInsets.symmetric(
+          horizontal: 6,
+          vertical: 5,
+        ),
+        decoration: BoxDecoration(
+          color: isSelected
+              ? AppColors.terracotta.withValues(alpha: 0.12)
+              : Colors.transparent,
+          borderRadius: BorderRadius.circular(16),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              icon,
+              size: 20,
+              color: isSelected ? AppColors.terracotta : AppColors.inkMuted,
+            ),
+            const SizedBox(height: 2),
+            FittedBox(
+              fit: BoxFit.scaleDown,
+              child: Text(
                 label,
                 maxLines: 1,
-                overflow: TextOverflow.ellipsis,
                 style: TextStyle(
-                  fontSize: 10.5,
+                  fontSize: 10,
+                  letterSpacing: -0.2,
                   fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
                   color: isSelected ? AppColors.terracotta : AppColors.inkMuted,
                 ),
               ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );

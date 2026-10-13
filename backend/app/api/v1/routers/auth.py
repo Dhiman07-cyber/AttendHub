@@ -2,10 +2,10 @@ from fastapi import APIRouter, Depends, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.db.session import get_db
 from app.schemas.auth import (
-    UserRegister, UserLogin, Token, RefreshTokenRequest,
+    UserRegister, UserLogin, GoogleAuthRequest, Token, RefreshTokenRequest,
     UserOut, PasswordResetRequest, PasswordResetConfirm
 )
-from app.services.auth_service import register_user, authenticate_user, refresh_user_token
+from app.services.auth_service import register_user, authenticate_user, authenticate_google_user, refresh_user_token
 from app.api.dependencies import get_current_user
 from app.models.user import User
 
@@ -21,6 +21,12 @@ async def register(data: UserRegister, db: AsyncSession = Depends(get_db)):
 async def login(data: UserLogin, db: AsyncSession = Depends(get_db)):
     """Authenticate student with email and password."""
     _, token = await authenticate_user(db, data)
+    return token
+
+@router.post("/google", response_model=Token)
+async def google_auth(data: GoogleAuthRequest, db: AsyncSession = Depends(get_db)):
+    """Authenticate or register student using Google OAuth credentials."""
+    _, token = await authenticate_google_user(db, data)
     return token
 
 @router.post("/refresh", response_model=Token)

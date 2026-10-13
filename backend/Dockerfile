@@ -44,8 +44,8 @@ COPY migrations/ ./migrations/
 COPY alembic.ini .
 COPY pyproject.toml .
 
-# Create storage upload directory
-RUN mkdir -p /app/storage_uploads && chown -R attendhub:attendhub /app
+# Set non-root ownership
+RUN chown -R attendhub:attendhub /app
 
 USER attendhub
 

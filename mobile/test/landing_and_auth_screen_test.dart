@@ -53,7 +53,9 @@ void main() {
       // RichText check
       expect(
         find.byWidgetPredicate((w) =>
-            w is RichText && w.text.toPlainText().contains('Track Today')),
+            w is RichText &&
+            w.text.toPlainText().contains('Track Every Class') &&
+            w.text.toPlainText().contains('75%')),
         findsOneWidget,
       );
 
@@ -79,7 +81,7 @@ void main() {
     });
 
     testWidgets(
-        'Navigation advances through Slide 2 and Slide 3 with universal subjects',
+        'Navigation advances through Slide 2 and Slide 3 with universal subjects and steps back smoothly',
         (WidgetTester tester) async {
       tester.view.physicalSize = const Size(600, 1400);
       tester.view.devicePixelRatio = 1.0;
@@ -109,10 +111,13 @@ void main() {
       // Now on Slide 2
       expect(find.text('2 / 3'), findsOneWidget);
       expect(find.textContaining('Smart Analytics'), findsWidgets);
-      // Universal subjects check
+      // 5 Relatable Class 10 / College subjects check
       expect(find.text('Mathematics'), findsOneWidget);
       expect(find.text('Computer Applications'), findsOneWidget);
       expect(find.text('English & Communication'), findsOneWidget);
+      expect(find.text('Science & Lab'), findsOneWidget);
+      expect(find.text('Social Studies'), findsOneWidget);
+      expect(find.byIcon(Icons.calculate_rounded), findsOneWidget);
       expect(find.text('Next'), findsOneWidget);
 
       // Slide 2 -> Tap "Next"
@@ -125,7 +130,25 @@ void main() {
       expect(find.text('Upload Routine'), findsOneWidget);
       expect(find.text('Add Manually'), findsOneWidget);
       expect(find.text('Quick and easy setup'), findsOneWidget);
+      expect(find.textContaining('Holiday protection'), findsNothing);
       expect(find.text('Create Account'), findsOneWidget);
+
+      // Test stepping backward from Slide 3 to Slide 2 using top bar back button
+      await tester.tap(find.byIcon(Icons.arrow_back_ios_new_rounded));
+      await tester.pumpAndSettle();
+      expect(find.text('2 / 3'), findsOneWidget);
+
+      // Test stepping backward from Slide 2 to Slide 1 using top bar back button
+      await tester.tap(find.byIcon(Icons.arrow_back_ios_new_rounded));
+      await tester.pumpAndSettle();
+      expect(find.text('AttendHub'), findsOneWidget);
+      expect(find.text('Get Started'), findsOneWidget);
+
+      // Move forward again to Slide 3 and complete
+      await tester.tap(find.text('Get Started'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Next'));
+      await tester.pumpAndSettle();
 
       // Tap "Create Account"
       await tester.tap(find.text('Create Account'));
@@ -173,10 +196,10 @@ void main() {
       expect(find.text('Forgot Password?'), findsOneWidget);
       expect(find.text('Log In'), findsOneWidget);
 
-      // Social buttons
+      // Social button (Google only)
       expect(find.text('Continue with Google'), findsOneWidget);
-      expect(find.text('Continue with GitHub'), findsOneWidget);
-      expect(find.text('Continue with Microsoft'), findsOneWidget);
+      expect(find.text('Continue with GitHub'), findsNothing);
+      expect(find.text('Continue with Microsoft'), findsNothing);
 
       // Switch to Sign Up
       final signUpFinder = find.text('Sign Up');

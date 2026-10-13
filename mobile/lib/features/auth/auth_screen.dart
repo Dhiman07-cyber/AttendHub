@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_typography.dart';
@@ -30,9 +31,9 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
   late bool _isSignUp;
   bool _obscurePassword = true;
 
-  final _emailController = TextEditingController(text: 'dhiman@adtu.edu.in');
-  final _passwordController = TextEditingController(text: 'Password123!');
-  final _nameController = TextEditingController(text: 'Dhiman Saikia');
+  final _emailController = TextEditingController();
+  final _passwordController = TextEditingController();
+  final _nameController = TextEditingController();
 
   @override
   void initState() {
@@ -59,11 +60,26 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
             password: password,
             fullName: name.isNotEmpty ? name : 'New Student',
           );
-      if (success) widget.onLoginSuccess();
+      if (success) {
+        // Trigger Google Password Manager / OS autofill prompt to save credentials
+        TextInput.finishAutofillContext(shouldSave: true);
+        widget.onLoginSuccess();
+      }
     } else {
       final success =
           await ref.read(authProvider.notifier).login(email, password);
-      if (success) widget.onLoginSuccess();
+      if (success) {
+        // Trigger Google Password Manager / OS autofill prompt to save credentials
+        TextInput.finishAutofillContext(shouldSave: true);
+        widget.onLoginSuccess();
+      }
+    }
+  }
+
+  void _handleGoogleSignIn() async {
+    final success = await ref.read(authProvider.notifier).signInWithGoogle();
+    if (success && mounted) {
+      widget.onLoginSuccess();
     }
   }
 
@@ -80,8 +96,14 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
     final authState = ref.watch(authProvider);
     final topPadding = MediaQuery.of(context).padding.top;
 
-    return Scaffold(
-      backgroundColor: AppColors.background,
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, result) {
+        if (didPop) return;
+        _handleBack();
+      },
+      child: Scaffold(
+        backgroundColor: AppColors.background,
       body: SingleChildScrollView(
         physics: const ClampingScrollPhysics(),
         child: Column(
@@ -328,57 +350,76 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
                     const SizedBox(height: 16),
                   ],
 
-                  // Form Fields
-                  if (_isSignUp) ...[
-                    AppTextField(
-                      label: 'Full Name',
-                      hint: 'Enter your full name',
-                      controller: _nameController,
-                      prefixIcon: const Icon(
-                        Icons.person_outline_rounded,
-                        size: 20,
-                        color: AppColors.inkMuted,
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-                  ],
+                  // Form Fields with Google Password Manager Autofill
+                  AutofillGroup(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        if (_isSignUp) ...[
+                          AppTextField(
+                            label: 'Full Name',
+                            hint: 'Enter your full name',
+                            controller: _nameController,
+                            textInputAction: TextInputAction.next,
+                            autofillHints: const [AutofillHints.name],
+                            prefixIcon: const Icon(
+                              Icons.person_outline_rounded,
+                              size: 20,
+                              color: AppColors.inkMuted,
+                            ),
+                          ),
+                          const SizedBox(height: 16),
+                        ],
 
-                  AppTextField(
-                    label: 'Email / University ID',
-                    hint: 'Enter your email or university ID',
-                    controller: _emailController,
-                    keyboardType: TextInputType.emailAddress,
-                    prefixIcon: const Icon(
-                      Icons.mail_outline_rounded,
-                      size: 20,
-                      color: AppColors.inkMuted,
-                    ),
-                  ),
-                  const SizedBox(height: 16),
+                        AppTextField(
+                          label: 'Email / University ID',
+                          hint: 'Enter your email or university ID',
+                          controller: _emailController,
+                          keyboardType: TextInputType.emailAddress,
+                          textInputAction: TextInputAction.next,
+                          autofillHints: const [
+                            AutofillHints.email,
+                            AutofillHints.username,
+                          ],
+                          prefixIcon: const Icon(
+                            Icons.mail_outline_rounded,
+                            size: 20,
+                            color: AppColors.inkMuted,
+                          ),
+                        ),
+                        const SizedBox(height: 16),
 
-                  AppTextField(
-                    label: 'Password',
-                    hint: 'Enter your password',
-                    controller: _passwordController,
-                    obscureText: _obscurePassword,
-                    prefixIcon: const Icon(
-                      Icons.lock_outline_rounded,
-                      size: 20,
-                      color: AppColors.inkMuted,
-                    ),
-                    suffixIcon: IconButton(
-                      icon: Icon(
-                        _obscurePassword
-                            ? Icons.visibility_outlined
-                            : Icons.visibility_off_outlined,
-                        size: 20,
-                        color: AppColors.inkMuted,
-                      ),
-                      onPressed: () {
-                        setState(() {
-                          _obscurePassword = !_obscurePassword;
-                        });
-                      },
+                        AppTextField(
+                          label: 'Password',
+                          hint: 'Enter your password',
+                          controller: _passwordController,
+                          obscureText: _obscurePassword,
+                          textInputAction: TextInputAction.done,
+                          autofillHints: _isSignUp
+                              ? const [AutofillHints.newPassword]
+                              : const [AutofillHints.password],
+                          onEditingComplete: _submit,
+                          prefixIcon: const Icon(
+                            Icons.lock_outline_rounded,
+                            size: 20,
+                            color: AppColors.inkMuted,
+                          ),
+                          suffixIcon: IconButton(
+                            icon: Icon(
+                              _obscurePassword
+                                  ? Icons.visibility_outlined
+                                  : Icons.visibility_off_outlined,
+                              size: 20,
+                              color: AppColors.inkMuted,
+                            ),
+                            onPressed: () {
+                              setState(() {
+                                _obscurePassword = !_obscurePassword;
+                              });
+                            },
+                          ),
+                        ),
+                      ],
                     ),
                   ),
 
@@ -448,54 +489,44 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
                   ),
                   const SizedBox(height: 18),
 
-                  // Social Login Buttons
+                  // Social Login Button (Google only)
                   _buildSocialButton(
                     logo: BrandIcons.google(size: 20),
                     label: 'Continue with Google',
-                    onTap: _submit,
-                  ),
-                  const SizedBox(height: 10),
-                  _buildSocialButton(
-                    logo: BrandIcons.github(size: 20),
-                    label: 'Continue with GitHub',
-                    onTap: _submit,
-                  ),
-                  const SizedBox(height: 10),
-                  _buildSocialButton(
-                    logo: BrandIcons.microsoft(size: 18),
-                    label: 'Continue with Microsoft',
-                    onTap: _submit,
+                    onTap: authState.isLoading ? () {} : _handleGoogleSignIn,
                   ),
 
                   const SizedBox(height: 24),
 
-                  // Switch between Log In and Sign Up
-                  Wrap(
-                    alignment: WrapAlignment.center,
-                    crossAxisAlignment: WrapCrossAlignment.center,
-                    children: [
-                      Text(
-                        _isSignUp
-                            ? 'Already have an account? '
-                            : "Don't have an account? ",
-                        style: AppTypography.bodySmall.copyWith(fontSize: 13),
-                      ),
-                      GestureDetector(
-                        onTap: () {
-                          setState(() {
-                            _isSignUp = !_isSignUp;
-                          });
-                        },
-                        child: Text(
-                          _isSignUp ? 'Sign In' : 'Sign Up',
-                          style: AppTypography.bodySmall.copyWith(
-                            color: const Color(0xFFDE6854),
-                            fontWeight: FontWeight.w800,
-                            fontSize: 13,
+                  // Switch between Log In and Sign Up (Horizontally Centered)
+                  Center(
+                    child: Wrap(
+                      alignment: WrapAlignment.center,
+                      crossAxisAlignment: WrapCrossAlignment.center,
+                      children: [
+                        Text(
+                          _isSignUp
+                              ? 'Already have an account? '
+                              : "Don't have an account? ",
+                          style: AppTypography.bodySmall.copyWith(fontSize: 13),
+                        ),
+                        GestureDetector(
+                          onTap: () {
+                            setState(() {
+                              _isSignUp = !_isSignUp;
+                            });
+                          },
+                          child: Text(
+                            _isSignUp ? 'Sign In' : 'Sign Up',
+                            style: AppTypography.bodySmall.copyWith(
+                              color: const Color(0xFFDE6854),
+                              fontWeight: FontWeight.w800,
+                              fontSize: 13,
+                            ),
                           ),
                         ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
                 ],
               ),
@@ -503,8 +534,9 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
           ],
         ),
       ),
-    );
-  }
+    ),
+  );
+}
 
   Widget _buildSocialButton({
     required Widget logo,

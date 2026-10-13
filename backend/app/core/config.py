@@ -23,12 +23,13 @@ class Settings(BaseSettings):
             return "postgresql+asyncpg://" + v[len("postgresql://"):]
         return v
     
-    # Security
-    JWT_SECRET: str = "attendhub_default_super_secret_key_change_in_production"
-    REFRESH_TOKEN_SECRET: str = "attendhub_refresh_secret_key_change_in_production"
+    # Security (Strictly loaded from .env; never hardcoded in source)
+    JWT_SECRET: str = ""
+    REFRESH_TOKEN_SECRET: str = ""
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24 * 7  # 7 days for seamless student mobile/web experience
     REFRESH_TOKEN_EXPIRE_DAYS: int = 60  # 60 days
+    GOOGLE_CLIENT_ID: str = ""
     
     # CORS
     CORS_ORIGINS: List[str] = ["*"]
@@ -43,19 +44,17 @@ class Settings(BaseSettings):
             except Exception:
                 return ["*"]
         return v or ["*"]
-    
-    # Storage
-    STORAGE_ENDPOINT: str = ""
-    STORAGE_BUCKET: str = "attendhub-uploads"
-    STORAGE_ACCESS_KEY: str = ""
-    STORAGE_SECRET_KEY: str = ""
-    LOCAL_STORAGE_DIR: str = "./storage_uploads"
+
+    @field_validator("JWT_SECRET", "REFRESH_TOKEN_SECRET", mode="before")
+    def validate_jwt_secrets(cls, v: str) -> str:
+        if not v or not v.strip():
+            import secrets
+            return secrets.token_urlsafe(64)
+        return v.strip()
     
     # Supabase Configuration
     SUPABASE_URL: str = ""
     SUPABASE_PUBLISHABLE_KEY: str = ""
-    NEXT_PUBLIC_SUPABASE_URL: str = ""
-    NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: str = ""
     
     model_config = SettingsConfigDict(
         env_file=(".env", "../.env"),
