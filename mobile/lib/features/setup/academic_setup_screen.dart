@@ -1168,79 +1168,90 @@ class _AcademicSetupScreenState extends ConsumerState<AcademicSetupScreen> with 
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: AppColors.background,
-      body: GestureDetector(
-        behavior: HitTestBehavior.translucent,
-        onTap: () {
-          final currentFocus = FocusScope.of(context);
-          if (!currentFocus.hasPrimaryFocus && currentFocus.focusedChild != null) {
-            currentFocus.unfocus();
-            _saveDraft();
-          }
-        },
-        child: SafeArea(
-          child: LayoutBuilder(
-            builder: (context, constraints) {
-              // Prevent RenderFlex overflow during transient micro-constraint frames (e.g. initial web canvas layout)
-              if (constraints.maxHeight < 160) {
-                return const SizedBox.shrink();
-              }
-              return Column(
-                children: [
-                  // Top Navigation & Step Indicator
-                  _buildTopIndicator(),
+    return PopScope(
+      canPop: _currentStep == 0 && widget.onCancel != null,
+      onPopInvokedWithResult: (didPop, result) {
+        if (didPop) return;
+        if (_currentStep > 0) {
+          _goToStep(_currentStep - 1);
+        } else if (widget.onCancel != null) {
+          widget.onCancel!();
+        }
+      },
+      child: Scaffold(
+        backgroundColor: AppColors.background,
+        body: GestureDetector(
+          behavior: HitTestBehavior.translucent,
+          onTap: () {
+            final currentFocus = FocusScope.of(context);
+            if (!currentFocus.hasPrimaryFocus && currentFocus.focusedChild != null) {
+              currentFocus.unfocus();
+              _saveDraft();
+            }
+          },
+          child: SafeArea(
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                // Prevent RenderFlex overflow during transient micro-constraint frames (e.g. initial web canvas layout)
+                if (constraints.maxHeight < 160) {
+                  return const SizedBox.shrink();
+                }
+                return Column(
+                  children: [
+                    // Top Navigation & Step Indicator
+                    _buildTopIndicator(),
 
-                  if (_errorMessage != null)
-                    Container(
-                      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                      padding: const EdgeInsets.all(12),
-                      decoration: BoxDecoration(
-                        color: AppColors.coralLight,
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: AppColors.coral.withValues(alpha: 0.3)),
-                      ),
-                      child: Row(
-                        children: [
-                          const Icon(Icons.error_outline_rounded, color: AppColors.coral, size: 20),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            child: Text(
-                              _errorMessage!,
-                              style: const TextStyle(color: AppColors.coral, fontSize: 13, fontWeight: FontWeight.w600),
+                    if (_errorMessage != null)
+                      Container(
+                        margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: AppColors.coralLight,
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: AppColors.coral.withValues(alpha: 0.3)),
+                        ),
+                        child: Row(
+                          children: [
+                            const Icon(Icons.error_outline_rounded, color: AppColors.coral, size: 20),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                _errorMessage!,
+                                style: const TextStyle(color: AppColors.coral, fontSize: 13, fontWeight: FontWeight.w600),
+                              ),
                             ),
-                          ),
+                          ],
+                        ),
+                      ),
+
+                    // Page View with steps (6 steps for returning students, 7 for first onboarding)
+                    Expanded(
+                      child: PageView(
+                        controller: _pageController,
+                        physics: const NeverScrollableScrollPhysics(),
+                        onPageChanged: (page) {
+                          if (_currentStep != page) {
+                            setState(() => _currentStep = page);
+                          }
+                        },
+                        children: [
+                          if (!_isReturningUser) _buildStep1Profile(),
+                          _buildStep2Semester(),
+                          _buildStep3Subjects(),
+                          _buildStep4Routine(),
+                          _buildStep5Holidays(),
+                          _buildStep6Attendance(),
+                          _buildStep7Review(),
                         ],
                       ),
                     ),
 
-                  // Page View with steps (6 steps for returning students, 7 for first onboarding)
-                  Expanded(
-                    child: PageView(
-                      controller: _pageController,
-                      physics: const NeverScrollableScrollPhysics(),
-                      onPageChanged: (page) {
-                        if (_currentStep != page) {
-                          setState(() => _currentStep = page);
-                        }
-                      },
-                      children: [
-                        if (!_isReturningUser) _buildStep1Profile(),
-                        _buildStep2Semester(),
-                        _buildStep3Subjects(),
-                        _buildStep4Routine(),
-                        _buildStep5Holidays(),
-                        _buildStep6Attendance(),
-                        _buildStep7Review(),
-                      ],
-                    ),
-                  ),
-
-                  // Bottom Navigation Controls
-                  _buildBottomControls(),
-                ],
-              );
-            },
+                    // Bottom Navigation Controls
+                    _buildBottomControls(),
+                  ],
+                );
+              },
+            ),
           ),
         ),
       ),

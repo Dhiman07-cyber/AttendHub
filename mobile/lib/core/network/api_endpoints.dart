@@ -1,4 +1,5 @@
 import 'package:flutter/foundation.dart';
+import '../config/app_config.dart';
 
 class ApiEndpoints {
   static const String renderDefaultUrl = 'https://attendify-li14.onrender.com/api/v1';
@@ -10,8 +11,11 @@ class ApiEndpoints {
   );
 
   static String get baseUrl {
-    if (_envBaseUrl.isNotEmpty) {
-      return normalizeBaseUrl(_envBaseUrl);
+    final configuredUrl = AppConfig.apiBaseUrl.isNotEmpty
+        ? AppConfig.apiBaseUrl
+        : _envBaseUrl;
+    if (configuredUrl.isNotEmpty) {
+      return normalizeBaseUrl(configuredUrl);
     }
     if (!kIsWeb) {
       return renderDefaultUrl;
@@ -33,6 +37,7 @@ class ApiEndpoints {
   // Auth
   static const String register = '/auth/register';
   static const String login = '/auth/login';
+  static const String googleAuth = '/auth/google';
   static const String refresh = '/auth/refresh';
   static const String logout = '/auth/logout';
   static const String me = '/auth/me';

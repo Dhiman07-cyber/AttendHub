@@ -8,16 +8,19 @@ services:
       dockerfile: Dockerfile
     container_name: attendhub-backend
     restart: unless-stopped
+    env_file:
+      - .env
     environment:
-      - DATABASE_URL=${DATABASE_URL:-postgresql+asyncpg://postgres:y4l7B7E9YQig0ALt@db.vaoesgmcrzywmkhbjqvq.supabase.co:5432/postgres}
-      - SUPABASE_URL=${SUPABASE_URL:-https://vaoesgmcrzywmkhbjqvq.supabase.co}
-      - SUPABASE_PUBLISHABLE_KEY=${SUPABASE_PUBLISHABLE_KEY:-sb_publishable_iScYs-Oz5_0GQrgbiYINIw_HYa05sBU}
-      - NEXT_PUBLIC_SUPABASE_URL=${NEXT_PUBLIC_SUPABASE_URL:-https://vaoesgmcrzywmkhbjqvq.supabase.co}
-      - NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=${NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY:-sb_publishable_iScYs-Oz5_0GQrgbiYINIw_HYa05sBU}
-      - JWT_SECRET=${JWT_SECRET:-attendhub_prod_jwt_secret_key_replace_before_public_release_2026}
-      - REFRESH_TOKEN_SECRET=${REFRESH_TOKEN_SECRET:-attendhub_prod_refresh_secret_key_replace_before_public_release_2026}
-      - ACCESS_TOKEN_EXPIRE_MINUTES=${ACCESS_TOKEN_EXPIRE_MINUTES:-60}
-      - REFRESH_TOKEN_EXPIRE_DAYS=${REFRESH_TOKEN_EXPIRE_DAYS:-30}
+      - DATABASE_URL=${DATABASE_URL}
+      - SUPABASE_URL=${SUPABASE_URL:-}
+      - SUPABASE_PUBLISHABLE_KEY=${SUPABASE_PUBLISHABLE_KEY:-}
+      - NEXT_PUBLIC_SUPABASE_URL=${NEXT_PUBLIC_SUPABASE_URL:-}
+      - NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=${NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY:-}
+      - JWT_SECRET=${JWT_SECRET:-}
+      - REFRESH_TOKEN_SECRET=${REFRESH_TOKEN_SECRET:-}
+      - ACCESS_TOKEN_EXPIRE_MINUTES=${ACCESS_TOKEN_EXPIRE_MINUTES:-10080}
+      - REFRESH_TOKEN_EXPIRE_DAYS=${REFRESH_TOKEN_EXPIRE_DAYS:-60}
+      - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID:-}
       - CORS_ORIGINS=${CORS_ORIGINS:-["*"]}
       - LOCAL_STORAGE_DIR=/app/storage_uploads
     ports:

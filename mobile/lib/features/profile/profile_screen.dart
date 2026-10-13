@@ -217,7 +217,7 @@ class ProfileScreen extends ConsumerWidget {
                       child: Text(
                         profile.fullName.isNotEmpty
                             ? profile.fullName[0].toUpperCase()
-                            : 'D',
+                            : 'S',
                         style: const TextStyle(
                           fontSize: 20,
                           fontWeight: FontWeight.w700,
@@ -234,7 +234,7 @@ class ProfileScreen extends ConsumerWidget {
                             children: [
                               Flexible(
                                 child: Text(
-                                  profile.fullName,
+                                  profile.fullName.isNotEmpty ? profile.fullName : 'Student',
                                   style: const TextStyle(
                                     fontWeight: FontWeight.w700,
                                     fontSize: 16,
@@ -279,7 +279,7 @@ class ProfileScreen extends ConsumerWidget {
                               overflow: TextOverflow.ellipsis,
                             ),
                           Text(
-                            profile.courseName,
+                            profile.courseName.isNotEmpty ? profile.courseName : 'Course Not Set',
                             style: AppTypography.bodySmall.copyWith(
                               fontSize: 11.5,
                               fontWeight: FontWeight.w600,
@@ -318,7 +318,7 @@ class ProfileScreen extends ConsumerWidget {
                     _buildRowItem(
                       icon: Icons.account_balance_outlined,
                       label: 'University',
-                      value: profile.universityName,
+                      value: profile.universityName.isNotEmpty ? profile.universityName : 'Not Set',
                       isEditable: true,
                       onTap: () => _showEditFieldSheet(
                         context: context,
@@ -333,7 +333,7 @@ class ProfileScreen extends ConsumerWidget {
                     _buildRowItem(
                       icon: Icons.menu_book_outlined,
                       label: 'Course',
-                      value: profile.courseName,
+                      value: profile.courseName.isNotEmpty ? profile.courseName : 'Not Set',
                       isEditable: true,
                       onTap: () => _showEditFieldSheet(
                         context: context,
@@ -348,7 +348,9 @@ class ProfileScreen extends ConsumerWidget {
                     _buildRowItem(
                       icon: Icons.badge_outlined,
                       label: 'Student ID',
-                      value: profile.studentIdNumber ?? 'Not Set',
+                      value: (profile.studentIdNumber != null && profile.studentIdNumber!.isNotEmpty)
+                          ? profile.studentIdNumber!
+                          : 'Not Set',
                       isEditable: true,
                       onTap: () => _showEditFieldSheet(
                         context: context,
@@ -369,7 +371,9 @@ class ProfileScreen extends ConsumerWidget {
                     _buildRowItem(
                       icon: Icons.layers_outlined,
                       label: 'Current Semester',
-                      value: profile.currentSemesterLabel ?? 'Active Semester',
+                      value: (profile.currentSemesterLabel != null && profile.currentSemesterLabel!.isNotEmpty)
+                          ? profile.currentSemesterLabel!
+                          : 'Not Set',
                       onTap: () {
                         ScaffoldMessenger.of(context).showSnackBar(
                           SnackBar(

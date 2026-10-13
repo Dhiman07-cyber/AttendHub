@@ -9,6 +9,8 @@ class AppTextField extends StatelessWidget {
   final TextEditingController? controller;
   final bool obscureText;
   final TextInputType? keyboardType;
+  final Iterable<String>? autofillHints;
+  final TextInputAction? textInputAction;
   final Widget? prefixIcon;
   final Widget? suffixIcon;
   final String? Function(String?)? validator;
@@ -25,6 +27,8 @@ class AppTextField extends StatelessWidget {
     this.controller,
     this.obscureText = false,
     this.keyboardType,
+    this.autofillHints,
+    this.textInputAction,
     this.prefixIcon,
     this.suffixIcon,
     this.validator,
@@ -51,6 +55,8 @@ class AppTextField extends StatelessWidget {
           focusNode: focusNode,
           obscureText: obscureText,
           keyboardType: keyboardType,
+          autofillHints: autofillHints,
+          textInputAction: textInputAction,
           maxLines: maxLines,
           validator: validator,
           onChanged: onChanged,

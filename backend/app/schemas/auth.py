@@ -1,13 +1,13 @@
 from typing import Optional
-from pydantic import BaseModel, EmailStr, Field, ConfigDict
+from pydantic import BaseModel, EmailStr, Field, ConfigDict, field_validator
 
 class UserRegister(BaseModel):
     email: EmailStr
     password: str = Field(..., min_length=6, max_length=100)
     full_name: str = Field(..., min_length=2, max_length=100)
-    university_name: Optional[str] = "Assam down town University"
-    course_name: Optional[str] = "B.Tech Computer Science & Engineering"
-    current_semester_number: Optional[int] = 5
+    university_name: Optional[str] = None
+    course_name: Optional[str] = None
+    current_semester_number: Optional[int] = 1
     minimum_attendance: Optional[float] = 75.0
     personal_target: Optional[float] = 75.0
     seed_demo_data: bool = True
@@ -15,6 +15,23 @@ class UserRegister(BaseModel):
 class UserLogin(BaseModel):
     email: EmailStr
     password: str
+
+class GoogleAuthRequest(BaseModel):
+    id_token: Optional[str] = None
+    access_token: Optional[str] = None
+    email: Optional[EmailStr] = None
+    full_name: Optional[str] = None
+    avatar_url: Optional[str] = None
+
+    @field_validator("id_token", "access_token", "email", "full_name", "avatar_url", mode="before")
+    @classmethod
+    def sanitize_empty_strings(cls, v: Optional[str]) -> Optional[str]:
+        if v is None:
+            return None
+        if isinstance(v, str):
+            trimmed = v.strip()
+            return trimmed if trimmed else None
+        return v
 
 class Token(BaseModel):
     access_token: str

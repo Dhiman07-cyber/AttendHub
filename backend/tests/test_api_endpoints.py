@@ -98,3 +98,58 @@ async def test_full_api_flow():
         assert hol_resp.status_code == 200
         holidays = hol_resp.json()
         assert len(holidays) >= 5
+
+
+@pytest.mark.asyncio
+async def test_google_auth_flow(monkeypatch):
+    from unittest.mock import AsyncMock
+    import app.services.auth_service as auth_service_mod
+    
+    # Mock verify_google_token so it doesn't need external network to Google servers during CI
+    mock_email = f"google_student_{uuid.uuid4().hex[:6]}@gmail.com"
+    mock_verify = AsyncMock(return_value={
+        "email": mock_email,
+        "name": "Google Test Student",
+        "sub": "google-user-12345",
+        "email_verified": "true",
+        "aud": "1234567890-mockclientid.apps.googleusercontent.com"
+    })
+    monkeypatch.setattr(auth_service_mod, "verify_google_token", mock_verify)
+
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        # 1. First sign-in: New student registration via Google
+        auth_resp = await client.post("/api/v1/auth/google", json={"id_token": "valid_mock_token"})
+        assert auth_resp.status_code == 200
+        token_data = auth_resp.json()
+        assert token_data["email"] == mock_email
+        assert token_data["full_name"] == "Google Test Student"
+        assert "access_token" in token_data
+
+        headers = {"Authorization": f"Bearer {token_data['access_token']}"}
+        me_resp = await client.get("/api/v1/auth/me", headers=headers)
+        assert me_resp.status_code == 200
+        assert me_resp.json()["email"] == mock_email
+
+        # Verify profile has invariant 75% defaults
+        prof_resp = await client.get("/api/v1/profile", headers=headers)
+        assert prof_resp.status_code == 200
+        assert prof_resp.json()["minimum_attendance"] == 75.0
+        assert prof_resp.json()["personal_target"] == 75.0
+
+        # 2. Second sign-in: Existing student login via Google
+        auth_resp_2 = await client.post("/api/v1/auth/google", json={"id_token": "valid_mock_token"})
+        assert auth_resp_2.status_code == 200
+        token_data_2 = auth_resp_2.json()
+        assert token_data_2["user_id"] == token_data["user_id"]
+        assert token_data_2["email"] == mock_email
+
+        # 3. Third sign-in: Robustness test where client sends empty string email or whitespace
+        auth_resp_3 = await client.post("/api/v1/auth/google", json={
+            "id_token": "valid_mock_token",
+            "email": "",
+            "full_name": ""
+        })
+        assert auth_resp_3.status_code == 200
+        assert auth_resp_3.json()["email"] == mock_email
+

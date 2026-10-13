@@ -74,54 +74,75 @@ class BrandIcons {
 class _GooglePainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
-    final cx = size.width / 2;
-    final cy = size.height / 2;
-    final radius = size.width / 2;
-    final strokeWidth = size.width * 0.22;
+    canvas.save();
+    // Scale coordinate space from 24x24 standard Google viewBox to target size
+    final scale = size.width / 24.0;
+    canvas.scale(scale, scale);
 
-    final rect = Rect.fromCircle(center: Offset(cx, cy), radius: radius - strokeWidth / 2);
+    // Official 4-color Google 'G' vector paths (24x24 viewBox)
+    // 1. Blue path (Right arm & lower-right quadrant)
+    final bluePath = Path()
+      ..moveTo(22.56, 12.25)
+      ..cubicTo(22.56, 11.47, 22.49, 10.72, 22.36, 10.0)
+      ..lineTo(12.0, 10.0)
+      ..lineTo(12.0, 14.26)
+      ..lineTo(17.92, 14.26)
+      ..cubicTo(17.66, 15.63, 16.88, 16.79, 15.71, 17.57)
+      ..lineTo(15.71, 20.34)
+      ..lineTo(19.28, 20.34)
+      ..cubicTo(21.36, 18.42, 22.56, 15.6, 22.56, 12.25)
+      ..close();
 
-    // Blue section (Right to bottom-right, + bar)
-    final bluePaint = Paint()
-      ..color = const Color(0xFF4285F4)
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = strokeWidth;
+    // 2. Green path (Bottom quadrant)
+    final greenPath = Path()
+      ..moveTo(12.0, 23.0)
+      ..cubicTo(14.97, 23.0, 17.46, 22.02, 19.28, 20.34)
+      ..lineTo(15.71, 17.57)
+      ..cubicTo(14.73, 18.23, 13.48, 18.63, 12.0, 18.63)
+      ..cubicTo(9.14, 18.63, 6.71, 16.7, 5.84, 14.1)
+      ..lineTo(2.18, 14.1)
+      ..lineTo(2.18, 16.94)
+      ..cubicTo(3.99, 20.53, 7.7, 23.0, 12.0, 23.0)
+      ..close();
 
-    // Green section (Bottom)
-    final greenPaint = Paint()
-      ..color = const Color(0xFF34A853)
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = strokeWidth;
+    // 3. Yellow path (Left quadrant)
+    final yellowPath = Path()
+      ..moveTo(5.84, 14.09)
+      ..cubicTo(5.62, 13.43, 5.49, 12.73, 5.49, 12.0)
+      ..cubicTo(5.49, 11.27, 5.62, 10.57, 5.84, 9.91)
+      ..lineTo(5.84, 7.06)
+      ..lineTo(2.18, 7.06)
+      ..cubicTo(1.43, 8.55, 1.0, 10.22, 1.0, 12.0)
+      ..cubicTo(1.0, 13.78, 1.43, 15.45, 2.18, 16.94)
+      ..lineTo(5.84, 14.09)
+      ..close();
 
-    // Yellow section (Bottom-left to left)
-    final yellowPaint = Paint()
-      ..color = const Color(0xFFFBBC05)
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = strokeWidth;
+    // 4. Red path (Top quadrant)
+    final redPath = Path()
+      ..moveTo(12.0, 5.38)
+      ..cubicTo(13.62, 5.38, 15.06, 5.94, 16.21, 7.02)
+      ..lineTo(19.36, 3.87)
+      ..cubicTo(17.45, 2.09, 14.97, 1.0, 12.0, 1.0)
+      ..cubicTo(7.7, 1.0, 3.99, 3.47, 2.18, 7.06)
+      ..lineTo(5.84, 9.9)
+      ..cubicTo(6.71, 7.3, 9.14, 5.38, 12.0, 5.38)
+      ..close();
 
-    // Red section (Top to top-left)
-    final redPaint = Paint()
-      ..color = const Color(0xFFEA4335)
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = strokeWidth;
+    final paint = Paint()..style = PaintingStyle.fill;
 
-    // Arcs
-    canvas.drawArc(rect, -0.4, 0.9, false, bluePaint);
-    canvas.drawArc(rect, 0.5, 1.25, false, greenPaint);
-    canvas.drawArc(rect, 1.75, 1.25, false, yellowPaint);
-    canvas.drawArc(rect, 3.0, 1.88, false, redPaint);
+    paint.color = const Color(0xFF4285F4);
+    canvas.drawPath(bluePath, paint);
 
-    // Center horizontal bar for Google 'G'
-    final barPaint = Paint()
-      ..color = const Color(0xFF4285F4)
-      ..style = PaintingStyle.fill;
-    final barRect = Rect.fromLTRB(
-      cx - strokeWidth * 0.2,
-      cy - strokeWidth / 2,
-      size.width,
-      cy + strokeWidth / 2,
-    );
-    canvas.drawRect(barRect, barPaint);
+    paint.color = const Color(0xFF34A853);
+    canvas.drawPath(greenPath, paint);
+
+    paint.color = const Color(0xFFFBBC05);
+    canvas.drawPath(yellowPath, paint);
+
+    paint.color = const Color(0xFFEA4335);
+    canvas.drawPath(redPath, paint);
+
+    canvas.restore();
   }
 
   @override

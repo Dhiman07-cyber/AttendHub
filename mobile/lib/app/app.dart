@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../core/theme/app_theme.dart';
 import '../core/theme/app_colors.dart';
@@ -88,6 +89,8 @@ class _AttendHubAppState extends ConsumerState<AttendHubApp> {
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
   late final PageController _pageController;
 
+  final List<int> _tabHistory = [];
+
   @override
   void initState() {
     super.initState();
@@ -147,9 +150,18 @@ class _AttendHubAppState extends ConsumerState<AttendHubApp> {
     }
   }
 
-  void _setNavState({int? tabIndex, String? secondaryRoute, bool clearSecondary = false}) {
+  void _setNavState({
+    int? tabIndex,
+    String? secondaryRoute,
+    bool clearSecondary = false,
+    bool recordHistory = true,
+  }) {
     setState(() {
       if (tabIndex != null) {
+        if (recordHistory && tabIndex != _activeTabIndex) {
+          _tabHistory.remove(tabIndex);
+          _tabHistory.add(_activeTabIndex);
+        }
         _activeTabIndex = tabIndex;
         if (_pageController.hasClients && _pageController.page?.round() != tabIndex) {
           _pageController.jumpToPage(tabIndex);
@@ -174,8 +186,68 @@ class _AttendHubAppState extends ConsumerState<AttendHubApp> {
     );
   }
 
+  DateTime? _lastBackPressTime;
+
+  bool _canPop() {
+    return false;
+  }
+
+  void _handleBackNavigation(BuildContext context) {
+    // 1. Close drawer if open
+    if (_scaffoldKey.currentState?.isDrawerOpen ?? false) {
+      _scaffoldKey.currentState?.closeDrawer();
+      return;
+    }
+
+    // 2. Close secondary screen if open
+    if (_secondaryRoute != null) {
+      _setNavState(clearSecondary: true);
+      return;
+    }
+
+    // 3. Pop previous tab from history
+    if (_tabHistory.isNotEmpty) {
+      final prevTab = _tabHistory.removeLast();
+      _setNavState(tabIndex: prevTab, recordHistory: false);
+      return;
+    }
+
+    // 4. Fallback to Dashboard if not on it
+    if (_activeTabIndex != 0) {
+      _setNavState(tabIndex: 0, recordHistory: false);
+      return;
+    }
+
+    // 5. On root Dashboard: require double-press within 2 seconds to exit app
+    final now = DateTime.now();
+    if (_lastBackPressTime == null ||
+        now.difference(_lastBackPressTime!) > const Duration(seconds: 2)) {
+      _lastBackPressTime = now;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Press back again to exit AttendiFy'),
+          duration: Duration(seconds: 2),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      return;
+    }
+
+    SystemNavigator.pop();
+  }
+
   @override
   Widget build(BuildContext context) {
+    ref.listen<AuthState>(authProvider, (previous, next) {
+      if (previous?.isAuthenticated == true && !next.isAuthenticated) {
+        setState(() {
+          _secondaryRoute = null;
+          _activeTabIndex = 0;
+          _tabHistory.clear();
+        });
+      }
+    });
+
     final authState = ref.watch(authProvider);
     final effectiveHasSeenOnboarding = _hasSeenOnboarding || authState.isAuthenticated;
 
@@ -274,10 +346,16 @@ class _AttendHubAppState extends ConsumerState<AttendHubApp> {
           final semState = ref.watch(semestersProvider);
 
           // Authenticated App Shell with Persistent Top Controls and Floating Bottom Nav
-          return Scaffold(
-            key: _scaffoldKey,
-            backgroundColor: AppColors.background,
-            appBar: null,
+          return PopScope(
+            canPop: _canPop(),
+            onPopInvokedWithResult: (didPop, result) {
+              if (didPop) return;
+              _handleBackNavigation(context);
+            },
+            child: Scaffold(
+              key: _scaffoldKey,
+              backgroundColor: AppColors.background,
+              appBar: null,
             drawer: AppDrawer(
               onNavigate: (route) {
                 if (route == '/dashboard') {
@@ -437,8 +515,9 @@ class _AttendHubAppState extends ConsumerState<AttendHubApp> {
                   ),
               ],
             ),
-          );
-        },
+          ),
+        );
+      },
       ),
     );
   }

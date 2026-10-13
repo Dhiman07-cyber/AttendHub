@@ -8,9 +8,9 @@ class AcademicProfile(Base):
     
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: uuid.uuid4().hex)
     user_id: Mapped[str] = mapped_column(String(36), ForeignKey("users.id", ondelete="CASCADE"), unique=True, nullable=False, index=True)
-    university_name: Mapped[str] = mapped_column(String(200), default="Assam down town University")
-    course_name: Mapped[str] = mapped_column(String(200), default="B.Tech Computer Science & Engineering")
-    student_id_number: Mapped[str] = mapped_column(String(100), nullable=True, default="ADTU/0/2024-28/BCSM/001")
+    university_name: Mapped[str] = mapped_column(String(200), default="")
+    course_name: Mapped[str] = mapped_column(String(200), default="")
+    student_id_number: Mapped[str] = mapped_column(String(100), nullable=True, default=None)
     academic_duration_years: Mapped[int] = mapped_column(Integer, default=4)
     academic_session_start: Mapped[int] = mapped_column(Integer, default=2024)
     academic_session_end: Mapped[int] = mapped_column(Integer, default=2028)

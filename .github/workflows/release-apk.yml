@@ -168,9 +168,11 @@ jobs:
         working-directory: mobile
         env:
           API_BASE_URL: ${{ steps.meta.outputs.api_url }}
+          GOOGLE_SERVER_CLIENT_ID: ${{ secrets.GOOGLE_SERVER_CLIENT_ID }}
         run: |
           flutter build apk --release \
-            --dart-define=API_BASE_URL="$API_BASE_URL"
+            --dart-define=API_BASE_URL="$API_BASE_URL" \
+            --dart-define=GOOGLE_SERVER_CLIENT_ID="$GOOGLE_SERVER_CLIENT_ID"
 
       - name: Prepare release assets & SHA-256 checksums
         working-directory: mobile/build/app/outputs/flutter-apk

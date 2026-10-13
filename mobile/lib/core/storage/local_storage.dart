@@ -77,10 +77,10 @@ class LocalStorage {
 
   Future<void> clearAuth() async {
     try {
-      await _secureStorage.delete(key: AppConstants.keyAccessToken);
-      await _secureStorage.delete(key: AppConstants.keyRefreshToken);
+      await _secureStorage.deleteAll();
     } catch (_) {}
     final prefs = await SharedPreferences.getInstance();
+    final onboarded = prefs.getBool(AppConstants.keyHasOnboarded) ?? false;
     await prefs.remove(AppConstants.keyAccessToken);
     await prefs.remove(AppConstants.keyRefreshToken);
     await prefs.remove(AppConstants.keyUserId);
@@ -91,6 +91,9 @@ class LocalStorage {
     await prefs.remove(_keyCachedSetupStatus);
     await clearSemesterCache();
     await clearNavState();
+    if (onboarded) {
+      await prefs.setBool(AppConstants.keyHasOnboarded, true);
+    }
   }
 
   Future<void> saveNavState({int? tabIndex, String? secondaryRoute}) async {

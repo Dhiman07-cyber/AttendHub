@@ -1,7 +1,7 @@
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request, status, Depends
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, HTMLResponse
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 import httpx
@@ -124,10 +124,108 @@ async def health_check(db: AsyncSession = Depends(get_db)):
         "supabase_ping": supabase_rest_status,
     }
 
-@app.get("/", tags=["Health"])
+@app.get("/", tags=["General"])
 async def root():
     return {
-        "message": "Welcome to AttendiFy API — Track · Plan · Stay Above",
-        "documentation": "/docs",
-        "version": settings.VERSION
+        "app": "AttendiFy",
+        "tagline": "Track · Plan · Stay Above 75%",
+        "version": settings.VERSION,
+        "docs": "/docs",
+        "privacy": "/privacy",
+        "terms": "/terms"
     }
+
+@app.get("/privacy", response_class=HTMLResponse, tags=["Legal"])
+async def privacy_policy():
+    return """<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AttendiFy — Privacy Policy</title>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #F7F1EC; color: #2C2825; padding: 24px; max-width: 800px; margin: 0 auto; line-height: 1.6; }
+        .card { background: #FFFFFF; border-radius: 16px; padding: 32px; box-shadow: 0 4px 20px rgba(0,0,0,0.04); border: 1px solid #EDE4DB; }
+        h1 { color: #C96E5B; font-size: 26px; margin-top: 0; }
+        h2 { color: #2C2825; font-size: 18px; margin-top: 24px; border-bottom: 1px solid #EDE4DB; padding-bottom: 6px; }
+        p, li { font-size: 14px; color: #57524E; }
+        .footer { margin-top: 32px; font-size: 12px; color: #8C827A; text-align: center; }
+    </style>
+</head>
+<body>
+    <div class="card">
+        <h1>AttendiFy Privacy Policy</h1>
+        <p><strong>Effective Date:</strong> October 2026</p>
+        <p>AttendiFy ("we", "our", or "the app") provides a student-side attendance tracking and planning utility. We are committed to protecting your privacy and ensuring transparency in how your information is handled.</p>
+        
+        <h2>1. Information We Collect</h2>
+        <p>When you sign up or authenticate with Google OAuth, we receive:</p>
+        <ul>
+            <li><strong>Profile Information:</strong> Your name and email address as provided by Google authentication to identify your student account.</li>
+            <li><strong>Academic Attendance Data:</strong> Class schedules, subject lists, attendance statuses (attended, absent, cancelled), and target thresholds that you track.</li>
+        </ul>
+
+        <h2>2. How We Use Information</h2>
+        <p>Your data is used solely to provide and improve the attendance tracking and forecasting features of AttendiFy:</p>
+        <ul>
+            <li>Calculating semester attendance percentages and safe absences.</li>
+            <li>Syncing your routine and calendar schedules across your authorized devices.</li>
+            <li>We do not sell, rent, or monetize your personal information.</li>
+        </ul>
+
+        <h2>3. Data Storage & Security</h2>
+        <p>All data is encrypted in transit using industry-standard TLS/HTTPS protocols and stored securely. Object-level user isolation is strictly enforced.</p>
+
+        <h2>4. Third-Party Services</h2>
+        <p>We use Google OAuth strictly for student identity verification. No additional Google user data or sensitive files are accessed.</p>
+
+        <h2>5. Contact & Data Deletion</h2>
+        <p>If you have questions or request data deletion, please contact us at: <strong>dhimansaikia2007@gmail.com</strong></p>
+
+        <div class="footer">© 2026 AttendiFy. All rights reserved.</div>
+    </div>
+</body>
+</html>"""
+
+@app.get("/terms", response_class=HTMLResponse, tags=["Legal"])
+async def terms_of_service():
+    return """<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AttendiFy — Terms of Service</title>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #F7F1EC; color: #2C2825; padding: 24px; max-width: 800px; margin: 0 auto; line-height: 1.6; }
+        .card { background: #FFFFFF; border-radius: 16px; padding: 32px; box-shadow: 0 4px 20px rgba(0,0,0,0.04); border: 1px solid #EDE4DB; }
+        h1 { color: #C96E5B; font-size: 26px; margin-top: 0; }
+        h2 { color: #2C2825; font-size: 18px; margin-top: 24px; border-bottom: 1px solid #EDE4DB; padding-bottom: 6px; }
+        p, li { font-size: 14px; color: #57524E; }
+        .footer { margin-top: 32px; font-size: 12px; color: #8C827A; text-align: center; }
+    </style>
+</head>
+<body>
+    <div class="card">
+        <h1>AttendiFy Terms of Service</h1>
+        <p><strong>Effective Date:</strong> October 2026</p>
+        <p>By accessing or using AttendiFy, you agree to be bound by these Terms of Service.</p>
+        
+        <h2>1. Purpose of the Application</h2>
+        <p>AttendiFy is a student-first attendance tracking and forecasting utility. Attendance forecasts and safe absence calculations are deterministic guidelines to assist students in tracking university attendance policies.</p>
+
+        <h2>2. User Accounts</h2>
+        <p>You are responsible for maintaining the confidentiality of your account credentials and for all activities that occur under your account.</p>
+
+        <h2>3. Acceptable Use</h2>
+        <p>You agree not to use the application for any unlawful purpose or to attempt unauthorized access to other student accounts or server infrastructure.</p>
+
+        <h2>4. Changes to Terms</h2>
+        <p>We may update these terms periodically. Continued use of AttendiFy constitutes acceptance of any revised terms.</p>
+
+        <h2>5. Contact</h2>
+        <p>For questions regarding these terms, contact: <strong>dhimansaikia2007@gmail.com</strong></p>
+
+        <div class="footer">© 2026 AttendiFy. All rights reserved.</div>
+    </div>
+</body>
+</html>"""
