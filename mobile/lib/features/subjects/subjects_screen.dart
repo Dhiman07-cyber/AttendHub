@@ -10,7 +10,7 @@ import '../../shared/models/subject_model.dart';
 import '../../shared/providers/semesters_provider.dart';
 import 'providers/subjects_provider.dart';
 import 'subject_detail_screen.dart';
-import '../imports/routine_import_dialog.dart';
+import '../../shared/widgets/app_toast.dart';
 
 
 class SubjectsScreen extends ConsumerWidget {
@@ -218,29 +218,13 @@ class SubjectsScreen extends ConsumerWidget {
 
                     const SizedBox(width: 12),
 
-                    // Upload Routine (OCR / Draft)
+                    // Upload Routine (Coming Soon)
                     Expanded(
                       child: InkWell(
                         onTap: () {
-                          final activeSem = semState.activeSemester;
-                          if (activeSem != null) {
-                            RoutineImportDialog.show(
-                              context,
-                              semesterId: activeSem.id,
-                              onImportSuccess: () {
-                                ref.read(subjectsProvider.notifier).loadSubjects();
-                              },
-                            );
-                          } else {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(
-                                content: Text('Please select an active semester first.'),
-                              ),
-                            );
-                          }
+                          AppToast.showComingSoon(context, feature: 'Upload Routine');
                         },
                         borderRadius: BorderRadius.circular(16),
-
                         child: Container(
                           padding: const EdgeInsets.all(14),
                           decoration: BoxDecoration(
@@ -272,12 +256,16 @@ class SubjectsScreen extends ConsumerWidget {
                                           fontWeight: FontWeight.w700,
                                           fontSize: 13,
                                           color: AppColors.ocean),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
                                     ),
                                     Text(
                                       'Image / PDF (OCR)',
                                       style: TextStyle(
                                           fontSize: 10,
                                           color: AppColors.inkMuted),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
                                     ),
                                   ],
                                 ),
@@ -300,27 +288,34 @@ class SubjectsScreen extends ConsumerWidget {
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Row(
-                    children: [
-                      _buildFilterPill(
-                        label:
-                            'Active (${state.subjects.where((s) => s.isActive).length})',
-                        isActive: !state.showInactive,
-                        onTap: () => ref
-                            .read(subjectsProvider.notifier)
-                            .toggleFilter(false),
+                  Expanded(
+                    child: SingleChildScrollView(
+                      scrollDirection: Axis.horizontal,
+                      physics: const BouncingScrollPhysics(),
+                      child: Row(
+                        children: [
+                          _buildFilterPill(
+                            label:
+                                'Active (${state.subjects.where((s) => s.isActive).length})',
+                            isActive: !state.showInactive,
+                            onTap: () => ref
+                                .read(subjectsProvider.notifier)
+                                .toggleFilter(false),
+                          ),
+                          const SizedBox(width: 8),
+                          _buildFilterPill(
+                            label:
+                                'Inactive (${state.subjects.where((s) => !s.isActive).length})',
+                            isActive: state.showInactive,
+                            onTap: () => ref
+                                .read(subjectsProvider.notifier)
+                                .toggleFilter(true),
+                          ),
+                        ],
                       ),
-                      const SizedBox(width: 8),
-                      _buildFilterPill(
-                        label:
-                            'Inactive (${state.subjects.where((s) => !s.isActive).length})',
-                        isActive: state.showInactive,
-                        onTap: () => ref
-                            .read(subjectsProvider.notifier)
-                            .toggleFilter(true),
-                      ),
-                    ],
+                    ),
                   ),
+                  const SizedBox(width: 8),
                   const Row(
                     children: [
                       Icon(Icons.swap_vert_rounded,

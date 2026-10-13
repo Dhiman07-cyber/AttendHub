@@ -153,3 +153,29 @@ async def test_google_auth_flow(monkeypatch):
         assert auth_resp_3.status_code == 200
         assert auth_resp_3.json()["email"] == mock_email
 
+@pytest.mark.asyncio
+async def test_google_verification_and_branding_endpoints():
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        # 1. Search Console verification HTML file
+        v_resp = await client.get("/google1ca5ec019afa568b.html")
+        assert v_resp.status_code == 200
+        assert "google-site-verification: google1ca5ec019afa568b.html" in v_resp.text
+
+        # 2. Homepage HTML with meta tag and privacy link
+        root_resp = await client.get("/")
+        assert root_resp.status_code == 200
+        assert 'content="google1ca5ec019afa568b"' in root_resp.text
+        assert 'href="/privacy"' in root_resp.text
+
+        # 3. Privacy Policy with verification meta tag
+        privacy_resp = await client.get("/privacy")
+        assert privacy_resp.status_code == 200
+        assert 'content="google1ca5ec019afa568b"' in privacy_resp.text
+
+        # 4. Terms with verification meta tag
+        terms_resp = await client.get("/terms")
+        assert terms_resp.status_code == 200
+        assert 'content="google1ca5ec019afa568b"' in terms_resp.text
+
+
