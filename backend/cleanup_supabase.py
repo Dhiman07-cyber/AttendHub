@@ -6,12 +6,6 @@ async def main():
     async with AsyncSessionLocal() as session:
         print("Starting Supabase database cleanup...")
         
-        # 1. Drop attendance_audit_logs table if exists
-        try:
-            await session.execute(text("DROP TABLE IF EXISTS public.attendance_audit_logs CASCADE;"))
-            print("Successfully dropped public.attendance_audit_logs table.")
-        except Exception as e:
-            print(f"Error dropping attendance_audit_logs: {e}")
 
         # 2. Delete test users (CASCADE will delete their profiles, semesters, subjects, timetable, holidays, sessions, attendance)
         del_users_res = await session.execute(text("DELETE FROM public.users WHERE email != 'dhiman@adtu.edu.in';"))

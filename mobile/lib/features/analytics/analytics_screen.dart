@@ -502,11 +502,16 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen> {
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    const Text(
-                      'Subject-wise Attendance',
-                      style:
-                          TextStyle(fontWeight: FontWeight.w700, fontSize: 14),
+                    const Expanded(
+                      child: Text(
+                        'Subject-wise Attendance',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                            fontWeight: FontWeight.w700, fontSize: 14),
+                      ),
                     ),
+                    const SizedBox(width: 8),
                     GestureDetector(
                       onTap: () => setState(() => _activeTabIndex = 1),
                       child: const Text(
@@ -754,9 +759,15 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen> {
                     Icon(Icons.auto_graph_rounded,
                         size: 18, color: AppColors.sage),
                     SizedBox(width: 8),
-                    Text('Overall Attendance Trend',
+                    Expanded(
+                      child: Text(
+                        'Overall Attendance Trend',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                         style: TextStyle(
-                            fontWeight: FontWeight.w700, fontSize: 14)),
+                            fontWeight: FontWeight.w700, fontSize: 14),
+                      ),
+                    ),
                   ],
                 ),
                 const SizedBox(height: 16),
@@ -826,21 +837,28 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen> {
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    const Row(
-                      children: [
-                        Icon(Icons.calendar_month_rounded,
-                            size: 18, color: AppColors.terracotta),
-                        SizedBox(width: 8),
-                        Text(
-                          'Academic Calendar',
-                          style: TextStyle(
-                            fontWeight: FontWeight.w700,
-                            fontSize: 14,
-                            color: AppColors.ink,
+                    const Expanded(
+                      child: Row(
+                        children: [
+                          Icon(Icons.calendar_month_rounded,
+                              size: 18, color: AppColors.terracotta),
+                          SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              'Academic Calendar',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                fontWeight: FontWeight.w700,
+                                fontSize: 14,
+                                color: AppColors.ink,
+                              ),
+                            ),
                           ),
-                        ),
-                      ],
+                        ],
+                      ),
                     ),
+                    const SizedBox(width: 8),
                     GestureDetector(
                       onTap: () => ref.read(calendarProvider.notifier).goToToday(),
                       child: Container(
@@ -1174,13 +1192,18 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text(
-                'All Subjects (${data.subjects.length})',
-                style: const TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w700,
-                    color: AppColors.ink),
+              Expanded(
+                child: Text(
+                  'All Subjects (${data.subjects.length})',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w700,
+                      color: AppColors.ink),
+                ),
               ),
+              const SizedBox(width: 8),
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                 decoration: BoxDecoration(
@@ -1258,6 +1281,8 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen> {
                   children: [
                     Text(
                       sub.name,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                       style: const TextStyle(
                           fontWeight: FontWeight.w700, fontSize: 14),
                     ),
@@ -1300,43 +1325,61 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text(
-                'Attended: ${sub.attended} of ${sub.conducted} classes',
-                style: AppTypography.bodySmall
-                    .copyWith(fontSize: 11, fontWeight: FontWeight.w500),
-              ),
-              if (hasNoData)
-                const Text(
-                  'Awaiting attendance records',
-                  style: TextStyle(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w600,
-                      color: AppColors.inkMuted),
-                )
-              else if (sub.classesNeededForMin != null && sub.classesNeededForMin! > 0)
-                Text(
-                  'Need ${sub.classesNeededForMin} to reach 75%',
-                  style: const TextStyle(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w700,
-                      color: AppColors.coral),
-                )
-              else if (sub.maxSafeAbsences > 0)
-                Text(
-                  'Safe to miss ${sub.maxSafeAbsences} classes',
-                  style: const TextStyle(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w700,
-                      color: AppColors.sageDark),
-                )
-              else
-                const Text(
-                  'Already at target',
-                  style: TextStyle(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w600,
-                      color: AppColors.sageDark),
+              Flexible(
+                child: Text(
+                  'Attended: ${sub.attended} of ${sub.conducted} classes',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: AppTypography.bodySmall
+                      .copyWith(fontSize: 11, fontWeight: FontWeight.w500),
                 ),
+              ),
+              const SizedBox(width: 8),
+              Flexible(
+                child: hasNoData
+                    ? const Text(
+                        'Awaiting attendance records',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        textAlign: TextAlign.end,
+                        style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w600,
+                            color: AppColors.inkMuted),
+                      )
+                    : (sub.classesNeededForMin != null && sub.classesNeededForMin! > 0)
+                        ? Text(
+                            'Need ${sub.classesNeededForMin} to reach 75%',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            textAlign: TextAlign.end,
+                            style: const TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w700,
+                                color: AppColors.coral),
+                          )
+                        : (sub.maxSafeAbsences > 0)
+                            ? Text(
+                                'Safe to miss ${sub.maxSafeAbsences} classes',
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                textAlign: TextAlign.end,
+                                style: const TextStyle(
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w700,
+                                    color: AppColors.sageDark),
+                              )
+                            : const Text(
+                                'Already at target',
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                textAlign: TextAlign.end,
+                                style: TextStyle(
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w600,
+                                    color: AppColors.sageDark),
+                              ),
+              ),
             ],
           ),
         ],
@@ -1495,6 +1538,8 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen> {
                         children: [
                           Text(
                             sub.name,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
                             style: const TextStyle(
                                 fontWeight: FontWeight.w700, fontSize: 13),
                           ),
@@ -1859,11 +1904,16 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen> {
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Text(
-                        sub.name,
-                        style: const TextStyle(
-                            fontWeight: FontWeight.w600, fontSize: 13),
+                      Expanded(
+                        child: Text(
+                          sub.name,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                              fontWeight: FontWeight.w600, fontSize: 13),
+                        ),
                       ),
+                      const SizedBox(width: 8),
                       Row(
                         children: [
                           Text(
@@ -1910,10 +1960,9 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen> {
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      ClipRRect(
-                        borderRadius: BorderRadius.circular(3),
-                        child: SizedBox(
-                          width: 180,
+                      Expanded(
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(3),
                           child: LinearProgressIndicator(
                             value: hasNoData ? 0.0 : (pct / 100.0).clamp(0.0, 1.0),
                             backgroundColor: hasNoData ? const Color(0xFFEFECE9) : barColor.withValues(alpha: 0.18),
@@ -1922,6 +1971,7 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen> {
                           ),
                         ),
                       ),
+                      const SizedBox(width: 10),
                       Text(
                         '${sub.attended} / ${sub.conducted}',
                         style: AppTypography.bodySmall.copyWith(fontSize: 11),

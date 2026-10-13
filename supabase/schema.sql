@@ -122,16 +122,6 @@ CREATE TABLE IF NOT EXISTS public.attendance_records (
     source VARCHAR(30) DEFAULT 'manual' NOT NULL
 );
 
--- 2.9 Attendance Audit Logs Table (Append-Only)
-CREATE TABLE IF NOT EXISTS public.attendance_audit_logs (
-    id VARCHAR(36) PRIMARY KEY DEFAULT gen_random_uuid()::text,
-    attendance_record_id VARCHAR(36) NOT NULL REFERENCES public.attendance_records(id) ON DELETE CASCADE,
-    original_status VARCHAR(20),
-    new_status VARCHAR(20) NOT NULL CHECK (new_status IN ('ATTENDED', 'ABSENT', 'NOT_HELD')),
-    changed_at TIMESTAMPTZ DEFAULT timezone('utc'::text, now()) NOT NULL,
-    changed_by VARCHAR(36) NOT NULL,
-    reason VARCHAR(255)
-);
 
 -- ==============================================================================
 -- 3. Performance Indexes (Foreign Keys & Common Query Paths)
@@ -169,9 +159,6 @@ CREATE INDEX IF NOT EXISTS idx_attendance_records_user_id ON public.attendance_r
 CREATE INDEX IF NOT EXISTS idx_attendance_records_session_id ON public.attendance_records(class_session_id);
 CREATE INDEX IF NOT EXISTS idx_attendance_records_user_session ON public.attendance_records(user_id, class_session_id);
 
--- Attendance Audit Logs
-CREATE INDEX IF NOT EXISTS idx_attendance_audit_logs_record_id ON public.attendance_audit_logs(attendance_record_id);
-CREATE INDEX IF NOT EXISTS idx_attendance_audit_logs_changed_at ON public.attendance_audit_logs(changed_at);
 
 -- ==============================================================================
 -- 4. Automatic Triggers & Audit Automation
@@ -202,42 +189,6 @@ CREATE TRIGGER set_attendance_records_updated_at
     FOR EACH ROW
     EXECUTE FUNCTION public.handle_updated_at();
 
--- 4.2 Automated Attendance Status Correction Audit Logger
-CREATE OR REPLACE FUNCTION public.log_attendance_correction()
-RETURNS TRIGGER 
-LANGUAGE plpgsql
-SECURITY INVOKER
-SET search_path = public
-AS $$
-BEGIN
-    IF (TG_OP = 'UPDATE' AND OLD.status IS DISTINCT FROM NEW.status) THEN
-        INSERT INTO public.attendance_audit_logs (
-            id,
-            attendance_record_id,
-            original_status,
-            new_status,
-            changed_at,
-            changed_by,
-            reason
-        ) VALUES (
-            gen_random_uuid()::text,
-            NEW.id,
-            OLD.status,
-            NEW.status,
-            timezone('utc'::text, now()),
-            NEW.user_id,
-            'Corrected status from ' || OLD.status || ' to ' || NEW.status
-        );
-    END IF;
-    RETURN NEW;
-END;
-$$;
-
-DROP TRIGGER IF EXISTS trigger_audit_attendance_correction ON public.attendance_records;
-CREATE TRIGGER trigger_audit_attendance_correction
-    AFTER UPDATE ON public.attendance_records
-    FOR EACH ROW
-    EXECUTE FUNCTION public.log_attendance_correction();
 
 -- ==============================================================================
 -- 5. Row-Level Security (RLS) Policies
@@ -481,35 +432,6 @@ CREATE POLICY "attendance_records_delete_own" ON public.attendance_records
     FOR DELETE TO authenticated
     USING (user_id = (select auth.uid())::text);
 
--- 5.9 Attendance Audit Logs Policies (Append-Only / Immutable)
-DROP POLICY IF EXISTS "audit_logs_select_own" ON public.attendance_audit_logs;
-CREATE POLICY "audit_logs_select_own" ON public.attendance_audit_logs
-    FOR SELECT TO authenticated
-    USING (EXISTS (
-        SELECT 1 FROM public.attendance_records
-        WHERE public.attendance_records.id = public.attendance_audit_logs.attendance_record_id
-        AND public.attendance_records.user_id = (select auth.uid())::text
-    ));
-
-DROP POLICY IF EXISTS "audit_logs_insert_own" ON public.attendance_audit_logs;
-CREATE POLICY "audit_logs_insert_own" ON public.attendance_audit_logs
-    FOR INSERT TO authenticated
-    WITH CHECK (EXISTS (
-        SELECT 1 FROM public.attendance_records
-        WHERE public.attendance_records.id = public.attendance_audit_logs.attendance_record_id
-        AND public.attendance_records.user_id = (select auth.uid())::text
-    ));
-
--- Disallow UPDATE and DELETE on audit logs to preserve strict immutability
-DROP POLICY IF EXISTS "audit_logs_no_update" ON public.attendance_audit_logs;
-CREATE POLICY "audit_logs_no_update" ON public.attendance_audit_logs
-    FOR UPDATE TO authenticated
-    USING (false);
-
-DROP POLICY IF EXISTS "audit_logs_no_delete" ON public.attendance_audit_logs;
-CREATE POLICY "audit_logs_no_delete" ON public.attendance_audit_logs
-    FOR DELETE TO authenticated
-    USING (false);
 
 -- ==============================================================================
 -- 6. Role Permissions and Access Grants

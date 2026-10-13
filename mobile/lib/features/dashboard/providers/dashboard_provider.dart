@@ -1,3 +1,4 @@
+import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/network/api_client.dart';
 import '../../../core/network/api_endpoints.dart';
@@ -316,8 +317,10 @@ class SelectedDateAttendanceNotifier extends StateNotifier<SelectedDateAttendanc
         // Unchecked eligible -> ABSENT
         final status = state.draftMarks[k] ?? 'ABSENT';
         records.add({
-          'timetable_entry_id': s.timetableEntryId,
-          'subject_id': s.subjectId,
+          if (s.id.isNotEmpty) 'session_id': s.id,
+          if (s.timetableEntryId != null && s.timetableEntryId!.isNotEmpty)
+            'timetable_entry_id': s.timetableEntryId,
+          if (s.subjectId.isNotEmpty) 'subject_id': s.subjectId,
           'status': status,
         });
       }
@@ -325,6 +328,7 @@ class SelectedDateAttendanceNotifier extends StateNotifier<SelectedDateAttendanc
       final payload = {
         'date': state.dateIso,
         'records': records,
+        'items': records,
       };
 
       final resp = await _client.dio.post(
@@ -365,10 +369,31 @@ class SelectedDateAttendanceNotifier extends StateNotifier<SelectedDateAttendanc
         throw Exception('Failed to save attendance: ${resp.statusCode}');
       }
     } catch (e) {
+      String msg = 'Failed to save attendance';
+      if (e is DioException) {
+        final data = e.response?.data;
+        if (data is Map && data['detail'] != null) {
+          final detail = data['detail'];
+          if (detail is String) {
+            msg = detail;
+          } else if (detail is List && detail.isNotEmpty) {
+            final first = detail.first;
+            msg = (first is Map && first['msg'] != null)
+                ? first['msg'].toString()
+                : detail.toString();
+          }
+        } else if (e.response?.statusCode != null) {
+          msg = 'Server returned status ${e.response?.statusCode}';
+        } else if (e.message != null) {
+          msg = e.message!;
+        }
+      } else {
+        msg = e.toString();
+      }
       if (mounted) {
         state = state.copyWith(
           isSaving: false,
-          errorMessage: e.toString(),
+          errorMessage: msg,
         );
       }
       return false;

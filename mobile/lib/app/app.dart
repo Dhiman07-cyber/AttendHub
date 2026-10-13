@@ -118,9 +118,11 @@ class _AttendHubAppState extends ConsumerState<AttendHubApp> {
         _activeTabIndex = nav.tabIndex;
         _secondaryRoute = nav.secondaryRoute;
       });
-      if (_pageController.hasClients) {
-        _pageController.jumpToPage(nav.tabIndex);
-      }
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (_pageController.hasClients && _pageController.page?.round() != nav.tabIndex) {
+          _pageController.jumpToPage(nav.tabIndex);
+        }
+      });
     }
   }
 
@@ -138,6 +140,13 @@ class _AttendHubAppState extends ConsumerState<AttendHubApp> {
         _secondaryRoute = secondaryRoute;
       }
     });
+    if (tabIndex != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (_pageController.hasClients && _pageController.page?.round() != _activeTabIndex) {
+          _pageController.jumpToPage(_activeTabIndex);
+        }
+      });
+    }
     LocalStorage().saveNavState(
       tabIndex: _activeTabIndex,
       secondaryRoute: _secondaryRoute,

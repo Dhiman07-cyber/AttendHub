@@ -44,5 +44,5 @@ async def correct_attendance(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
-    """Correct a previously marked attendance record with audit log trail."""
+    """Correct a previously marked attendance record."""
     return await correct_attendance_record(db, current_user.id, id, payload)
