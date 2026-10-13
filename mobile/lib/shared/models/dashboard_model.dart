@@ -81,13 +81,13 @@ class DashboardOverviewModel {
 
   factory DashboardOverviewModel.fromJson(Map<String, dynamic> json) {
     final sessList = (json['today_sessions'] as List? ?? [])
-        .map((e) => ClassSessionModel.fromJson(e as Map<String, dynamic>))
+        .map((e) => ClassSessionModel.fromJson(Map<String, dynamic>.from(e as Map)))
         .toList();
     final attList = (json['subjects_needing_attention'] as List? ?? [])
-        .map((e) => DashboardSubjectAttentionModel.fromJson(e as Map<String, dynamic>))
+        .map((e) => DashboardSubjectAttentionModel.fromJson(Map<String, dynamic>.from(e as Map)))
         .toList();
     final trList = (json['trend_points'] as List? ?? [])
-        .map((e) => TrendPointModel.fromJson(e as Map<String, dynamic>))
+        .map((e) => TrendPointModel.fromJson(Map<String, dynamic>.from(e as Map)))
         .toList();
 
     return DashboardOverviewModel(
@@ -110,10 +110,10 @@ class DashboardOverviewModel {
       todaySessions: sessList,
       subjectsNeedingAttention: attList,
       upcomingHoliday: json['upcoming_holiday'] != null
-          ? HolidayModel.fromJson(json['upcoming_holiday'] as Map<String, dynamic>)
+          ? HolidayModel.fromJson(Map<String, dynamic>.from(json['upcoming_holiday'] as Map))
           : null,
       quickInsight: json['quick_insight'] != null
-          ? InsightModel.fromJson(json['quick_insight'] as Map<String, dynamic>)
+          ? InsightModel.fromJson(Map<String, dynamic>.from(json['quick_insight'] as Map))
           : null,
       trendPoints: trList,
     );
