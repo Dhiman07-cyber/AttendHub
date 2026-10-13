@@ -388,21 +388,22 @@ class DashboardScreen extends ConsumerWidget {
   Widget _buildDashboardContent(
     BuildContext context,
     WidgetRef ref,
-    dynamic data,
+    DashboardOverviewModel data,
   ) {
-    final enrollmentId = (data.enrollmentId != null && data.enrollmentId.toString().trim().isNotEmpty)
-        ? data.enrollmentId.toString().trim()
-        : null;
+    try {
+      final enrollmentId = (data.enrollmentId != null && data.enrollmentId.toString().trim().isNotEmpty)
+          ? data.enrollmentId.toString().trim()
+          : null;
 
-    return SingleChildScrollView(
-      padding: const EdgeInsets.only(bottom: 96),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // 1. Landscape Header with Sunrise Artwork
-          LandscapeHeaderWidget(
-            greeting: 'Good morning,',
-            userName: data.userName,
+      return SingleChildScrollView(
+        padding: const EdgeInsets.only(bottom: 96),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // 1. Landscape Header with Sunrise Artwork
+            LandscapeHeaderWidget(
+              greeting: 'Good morning,',
+              userName: data.userName,
             semesterInfo: enrollmentId != null ? 'Enrollment ID · $enrollmentId' : '',
             showActions: false,
             topOffset: 76,
@@ -889,7 +890,7 @@ class DashboardScreen extends ConsumerWidget {
                         ? CustomPaint(
                             painter: _TrendChartPainter(
                               points: data.trendPoints
-                                  .map((tp) =>
+                                  .map<double>((tp) =>
                                       ((tp.percentage ?? 0.0) / 100.0)
                                           .clamp(0.0, 1.0))
                                   .toList(),
@@ -920,9 +921,16 @@ class DashboardScreen extends ConsumerWidget {
               ),
             ),
           ),
-        ],
-      ),
-    );
+          ],
+        ),
+      );
+    } catch (e, st) {
+      debugPrint('[Dashboard Content Crash] $e\n$st');
+      return ErrorRetryView(
+        message: 'Dashboard layout error: $e',
+        onRetry: () => ref.refresh(dashboardProvider),
+      );
+    }
   }
 
   String _formatDateHeader(DateTime date) {

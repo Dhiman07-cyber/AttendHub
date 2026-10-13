@@ -1,4 +1,5 @@
 import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart';
 import '../storage/local_storage.dart';
 import 'api_endpoints.dart';
 
@@ -34,9 +35,15 @@ class ApiClient {
         } else if (token == 'demo_token') {
           await _storage.clearAuth();
         }
+        debugPrint('[API REQ] ${options.method} ${options.baseUrl}${options.path}');
         return handler.next(options);
       },
+      onResponse: (response, handler) {
+        debugPrint('[API RES] ${response.statusCode} ${response.requestOptions.path}');
+        return handler.next(response);
+      },
       onError: (DioException error, handler) async {
+        debugPrint('[API ERR] ${error.response?.statusCode} ${error.requestOptions.path}: ${error.message}');
         final path = error.requestOptions.path;
         final isAuthEndpoint = path.contains('/auth/login') ||
             path.contains('/auth/register') ||

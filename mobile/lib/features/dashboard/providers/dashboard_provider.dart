@@ -1,4 +1,5 @@
 import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/network/api_client.dart';
 import '../../../core/network/api_endpoints.dart';
@@ -12,23 +13,27 @@ import '../../calendar/providers/calendar_provider.dart';
 import '../../subjects/providers/subjects_provider.dart';
 
 final dashboardProvider = FutureProvider<DashboardOverviewModel>((ref) async {
-  // Keep dashboard data tied to the active semester context. This ensures
-  // semester switches trigger a fresh request instead of leaving old data on
-  // screen after the provider is invalidated.
-  ref.watch(semestersProvider);
+  // Tie dashboard data to active semester ID so semester switches refresh data
+  // without triggering cancellation storms on intermediate loading states.
+  final activeSemId = ref.watch(semestersProvider.select((s) => s.activeSemester?.id));
+  debugPrint('[dashboardProvider] Running for active semester: $activeSemId');
   final client = ApiClient();
   final storage = LocalStorage();
   try {
     final response = await client.dio.get(ApiEndpoints.dashboard);
+    debugPrint('[dashboardProvider] API status: ${response.statusCode}');
     if (response.statusCode == 200 && response.data is Map) {
       final dataMap = Map<String, dynamic>.from(response.data as Map);
       await storage.saveCachedDashboard(dataMap);
+      debugPrint('[dashboardProvider] Successfully loaded & cached dashboard model');
       return DashboardOverviewModel.fromJson(dataMap);
     }
     throw Exception('Failed to load dashboard: ${response.statusCode}');
-  } catch (e) {
+  } catch (e, st) {
+    debugPrint('[dashboardProvider ERROR] $e\n$st');
     final cached = await storage.getCachedDashboard();
     if (cached != null) {
+      debugPrint('[dashboardProvider] Restored dashboard from cache');
       return DashboardOverviewModel.fromJson(cached);
     }
     rethrow;
