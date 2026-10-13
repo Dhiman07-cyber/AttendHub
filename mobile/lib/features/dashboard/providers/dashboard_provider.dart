@@ -12,6 +12,10 @@ import '../../calendar/providers/calendar_provider.dart';
 import '../../subjects/providers/subjects_provider.dart';
 
 final dashboardProvider = FutureProvider<DashboardOverviewModel>((ref) async {
+  // Keep dashboard data tied to the active semester context. This ensures
+  // semester switches trigger a fresh request instead of leaving old data on
+  // screen after the provider is invalidated.
+  ref.watch(semestersProvider);
   final client = ApiClient();
   final storage = LocalStorage();
   try {
@@ -467,4 +471,3 @@ final selectedDateAttendanceProvider = StateNotifierProvider.autoDispose<
     SelectedDateAttendanceNotifier, SelectedDateAttendanceState>((ref) {
   return SelectedDateAttendanceNotifier(ref);
 });
-

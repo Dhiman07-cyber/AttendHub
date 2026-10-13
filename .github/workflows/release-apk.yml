@@ -6,9 +6,10 @@ on:
     tags:
       - "v*"
 
-  # 2. Trigger when a Release or Pre-release is created/published in the GitHub UI
+  # 2. Build when a Release or Pre-release is published in the GitHub UI.
+  #    Using only published avoids racing the release creation/update step below.
   release:
-    types: [created, published]
+    types: [published]
 
   # 3. Allow manual one-click release from the GitHub Actions tab
   workflow_dispatch:
@@ -18,7 +19,7 @@ on:
         required: true
         default: "v1.0.1"
         type: string
-      release_Title:
+      release_title:
         description: "Release title (optional, defaults to AttendiFy <tag>)"
         required: false
         default: ""
@@ -56,19 +57,29 @@ jobs:
       - name: Resolve release metadata
         id: meta
         shell: bash
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          DISPATCH_TAG: ${{ inputs.tag_name }}
+          DISPATCH_TITLE: ${{ inputs.release_title }}
+          DISPATCH_PRERELEASE: ${{ inputs.prerelease }}
+          DISPATCH_API_URL: ${{ inputs.api_base_url }}
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+          RELEASE_TITLE: ${{ github.event.release.name }}
+          RELEASE_PRERELEASE: ${{ github.event.release.prerelease }}
+          REF_TAG: ${{ github.ref_name }}
         run: |
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            TAG="${{ inputs.tag_name }}"
-            TITLE="${{ inputs.release_Title }}"
-            PRERELEASE="${{ inputs.prerelease }}"
-            API_URL="${{ inputs.api_base_url }}"
-          elif [ "${{ github.event_name }}" = "release" ]; then
-            TAG="${{ github.event.release.tag_name }}"
-            TITLE="${{ github.event.release.name }}"
-            PRERELEASE="${{ github.event.release.prerelease }}"
+          if [ "$EVENT_NAME" = "workflow_dispatch" ]; then
+            TAG="$DISPATCH_TAG"
+            TITLE="$DISPATCH_TITLE"
+            PRERELEASE="$DISPATCH_PRERELEASE"
+            API_URL="$DISPATCH_API_URL"
+          elif [ "$EVENT_NAME" = "release" ]; then
+            TAG="$RELEASE_TAG"
+            TITLE="$RELEASE_TITLE"
+            PRERELEASE="$RELEASE_PRERELEASE"
             API_URL="https://attendify-li14.onrender.com/api/v1"
           else
-            TAG="${GITHUB_REF_NAME}"
+            TAG="$REF_TAG"
             TITLE=""
             if [[ "$TAG" == *"-"* ]]; then
               PRERELEASE="true"
@@ -76,6 +87,15 @@ jobs:
               PRERELEASE="false"
             fi
             API_URL="https://attendify-li14.onrender.com/api/v1"
+          fi
+
+          if [[ ! "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+([.-][0-9A-Za-z.-]+)?$ ]]; then
+            echo "Invalid release tag '$TAG'. Expected vMAJOR.MINOR.PATCH[-suffix]." >&2
+            exit 1
+          fi
+          if [ -z "$API_URL" ]; then
+            echo "API base URL cannot be empty." >&2
+            exit 1
           fi
 
           if [ -z "$TITLE" ]; then
@@ -99,8 +119,24 @@ jobs:
         uses: subosito/flutter-action@v2
         with:
           channel: "stable"
+          flutter-version: "3.35.6"
           cache: true
           cache-key: "flutter-:os:-:channel:-:version:-:arch:-:hash:"
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "8.12"
+
+      - name: Ensure Android Gradle wrapper
+        working-directory: mobile
+        shell: bash
+        run: |
+          if [ ! -x android/gradlew ]; then
+            FLUTTER_SDK="$(dirname "$(dirname "$(command -v flutter)")")"
+            printf 'flutter.sdk=%s\n' "$FLUTTER_SDK" > android/local.properties
+            gradle -p android wrapper --gradle-version 8.12
+          fi
 
       - name: Install Flutter dependencies
         working-directory: mobile
@@ -110,11 +146,17 @@ jobs:
         working-directory: mobile
         run: flutter test --reporter compact
 
+      - name: Analyze Flutter project
+        working-directory: mobile
+        run: flutter analyze --no-fatal-infos
+
       - name: Build Release APK
         working-directory: mobile
+        env:
+          API_BASE_URL: ${{ steps.meta.outputs.api_url }}
         run: |
           flutter build apk --release \
-            --dart-define=API_BASE_URL=${{ steps.meta.outputs.api_url }}
+            --dart-define=API_BASE_URL="$API_BASE_URL"
 
       - name: Prepare release assets & SHA-256 checksums
         working-directory: mobile/build/app/outputs/flutter-apk
