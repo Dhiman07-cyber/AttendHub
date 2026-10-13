@@ -13,9 +13,11 @@ services:
       - key: DATABASE_URL
         sync: false
       - key: SUPABASE_URL
-        value: https://vaoesgmcrzywmkhbjqvq.supabase.co
+        sync: false
       - key: SUPABASE_PUBLISHABLE_KEY
-        value: sb_publishable_iScYs-Oz5_0GQrgbiYINIw_HYa05sBU
+        sync: false
+      - key: GOOGLE_CLIENT_ID
+        sync: false
       - key: JWT_SECRET
         generateValue: true
       - key: REFRESH_TOKEN_SECRET

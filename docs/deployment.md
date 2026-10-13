@@ -40,7 +40,7 @@ flowchart LR
 ## 2. Supabase PostgreSQL Setup
 
 ### 2.1 Provisioning the Schema
-1. Open the **Supabase Dashboard** for your project (`vaoesgmcrzywmkhbjqvq` or your custom instance).
+1. Open the **Supabase Dashboard** for your project (`[YOUR-PROJECT-REF]` or your custom instance).
 2. Navigate to **SQL Editor** $\to$ **New Query**.
 3. Paste the full contents of [`supabase/schema.sql`](../supabase/schema.sql) and click **Run**.
 4. Verify that all 9 tables (`users`, `academic_profiles`, `semesters`, `subjects`, `timetable_entries`, `class_sessions`, `holidays`, `attendance_records`, `attendance_audit_logs`), indexes, RLS policies, and audit triggers are created.
@@ -76,7 +76,7 @@ The repository includes an Infrastructure-as-Code blueprint in [`render.yaml`](.
 |---|---|---|
 | `PYTHON_VERSION` | `3.11.9` | Python runtime version on Render. |
 | `DATABASE_URL` | `postgresql+asyncpg://postgres:[PASS]@db.[REF].supabase.co:5432/postgres` | Supabase PostgreSQL connection URL (mark as secret / `sync: false`). |
-| `SUPABASE_URL` | `https://vaoesgmcrzywmkhbjqvq.supabase.co` | Supabase project URL used by `/health` keep-alive ping. |
+| `SUPABASE_URL` | `https://[YOUR-PROJECT-REF].supabase.co` | Supabase project URL used by `/health` keep-alive ping. |
 | `SUPABASE_PUBLISHABLE_KEY` | `sb_publishable_...` | Supabase anon/publishable key for REST gateway ping. |
 | `JWT_SECRET` | *(Auto-generated 256-bit secret)* | Signing secret for JWT access tokens. |
 | `REFRESH_TOKEN_SECRET` | *(Auto-generated 256-bit secret)* | Separate signing secret for JWT refresh tokens. |

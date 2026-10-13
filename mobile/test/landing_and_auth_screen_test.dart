@@ -141,7 +141,7 @@ void main() {
       // Test stepping backward from Slide 2 to Slide 1 using top bar back button
       await tester.tap(find.byIcon(Icons.arrow_back_ios_new_rounded));
       await tester.pumpAndSettle();
-      expect(find.text('AttendHub'), findsOneWidget);
+      expect(find.text('AttendiFy'), findsOneWidget);
       expect(find.text('Get Started'), findsOneWidget);
 
       // Move forward again to Slide 3 and complete

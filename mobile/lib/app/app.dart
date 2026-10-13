@@ -225,7 +225,7 @@ class _AttendHubAppState extends ConsumerState<AttendHubApp> {
       _lastBackPressTime = now;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Press back again to exit AttendHub'),
+          content: Text('Press back again to exit AttendiFy'),
           duration: Duration(seconds: 2),
           behavior: SnackBarBehavior.floating,
         ),

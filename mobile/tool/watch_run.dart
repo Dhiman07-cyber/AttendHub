@@ -8,12 +8,14 @@ void main(List<String> args) async {
   stdout.writeln('  Watching lib/ for changes -> Auto Hot Reload on Save');
   stdout.writeln('========================================================');
 
+  final hasEnv = File('.env').existsSync();
   final List<String> flutterArgs = [
     'run',
     '-d',
     'web-server',
     '--web-hostname=127.0.0.1',
     '--web-port=5000',
+    if (hasEnv) '--dart-define-from-file=.env',
     ...args,
   ];
 

@@ -112,7 +112,7 @@ async def test_google_auth_flow(monkeypatch):
         "name": "Google Test Student",
         "sub": "google-user-12345",
         "email_verified": "true",
-        "aud": "116527451867-uvt0r5bgfvt2pur119uuuiicfcuk0pp8.apps.googleusercontent.com"
+        "aud": "1234567890-mockclientid.apps.googleusercontent.com"
     })
     monkeypatch.setattr(auth_service_mod, "verify_google_token", mock_verify)
 
@@ -143,4 +143,13 @@ async def test_google_auth_flow(monkeypatch):
         token_data_2 = auth_resp_2.json()
         assert token_data_2["user_id"] == token_data["user_id"]
         assert token_data_2["email"] == mock_email
+
+        # 3. Third sign-in: Robustness test where client sends empty string email or whitespace
+        auth_resp_3 = await client.post("/api/v1/auth/google", json={
+            "id_token": "valid_mock_token",
+            "email": "",
+            "full_name": ""
+        })
+        assert auth_resp_3.status_code == 200
+        assert auth_resp_3.json()["email"] == mock_email
 

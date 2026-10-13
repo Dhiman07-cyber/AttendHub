@@ -54,7 +54,24 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
     final password = _passwordController.text;
     final name = _nameController.text.trim();
 
+    if (email.isEmpty) {
+      ref.read(authProvider.notifier).setCustomError('Please enter your email address.');
+      return;
+    }
+    if (!email.contains('@') || !email.contains('.')) {
+      ref.read(authProvider.notifier).setCustomError('Please enter a valid email address.');
+      return;
+    }
+    if (password.isEmpty) {
+      ref.read(authProvider.notifier).setCustomError('Please enter your password.');
+      return;
+    }
+
     if (_isSignUp) {
+      if (password.length < 6) {
+        ref.read(authProvider.notifier).setCustomError('Password must be at least 6 characters long.');
+        return;
+      }
       final success = await ref.read(authProvider.notifier).register(
             email: email,
             password: password,
