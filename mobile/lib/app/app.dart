@@ -805,7 +805,7 @@ class _AttendHubAppState extends ConsumerState<AttendHubApp> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('AttendiFy v1.0.0',
+            Text('AttendiFy v1.0.1',
                 style: TextStyle(fontWeight: FontWeight.w700, fontSize: 14)),
             SizedBox(height: 4),
             Text(

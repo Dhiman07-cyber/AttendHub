@@ -1,8 +1,10 @@
 name: Build & Release Android APK
 
 on:
-  # 1. Trigger automatically when a version tag is pushed (e.g., git tag v1.0.1 && git push origin v1.0.1)
+  # 1. Trigger automatically on every push to main or version tags
   push:
+    branches:
+      - main
     tags:
       - "v*"
 
@@ -40,7 +42,7 @@ permissions:
 
 concurrency:
   group: release-apk-${{ github.ref }}
-  cancel-in-progress: false
+  cancel-in-progress: true
 
 jobs:
   build-and-release:
@@ -66,7 +68,8 @@ jobs:
           RELEASE_TAG: ${{ github.event.release.tag_name }}
           RELEASE_TITLE: ${{ github.event.release.name }}
           RELEASE_PRERELEASE: ${{ github.event.release.prerelease }}
-          REF_TAG: ${{ github.ref_name }}
+          REF_TYPE: ${{ github.ref_type }}
+          REF_NAME: ${{ github.ref_name }}
         run: |
           if [ "$EVENT_NAME" = "workflow_dispatch" ]; then
             TAG="$DISPATCH_TAG"
@@ -78,14 +81,25 @@ jobs:
             TITLE="$RELEASE_TITLE"
             PRERELEASE="$RELEASE_PRERELEASE"
             API_URL="https://attendify-li14.onrender.com/api/v1"
-          else
-            TAG="$REF_TAG"
+          elif [ "$REF_TYPE" = "tag" ]; then
+            TAG="$REF_NAME"
             TITLE=""
             if [[ "$TAG" == *"-"* ]]; then
               PRERELEASE="true"
             else
               PRERELEASE="false"
             fi
+            API_URL="https://attendify-li14.onrender.com/api/v1"
+          else
+            # Pushed to branch (e.g. main)
+            PUBSPEC_VER=$(grep '^version:' mobile/pubspec.yaml | head -n 1 | awk '{print $2}' | cut -d'+' -f1 | tr -d ' \r\n')
+            if [ -n "$PUBSPEC_VER" ]; then
+              TAG="v${PUBSPEC_VER}"
+            else
+              TAG="v1.0.1"
+            fi
+            TITLE="AttendiFy ${TAG}"
+            PRERELEASE="true"
             API_URL="https://attendify-li14.onrender.com/api/v1"
           fi
 

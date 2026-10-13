@@ -399,7 +399,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                       Text('Version',
                           style: TextStyle(
                               fontSize: 13, fontWeight: FontWeight.w600)),
-                      Text('1.0.0 (Production Build 2026.10)',
+                      Text('1.0.1 (Production Build 2026.10)',
                           style: TextStyle(
                               fontSize: 11,
                               color: AppColors.inkMuted,
