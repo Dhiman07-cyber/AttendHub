@@ -8,7 +8,7 @@ import '../../shared/widgets/app_text_field.dart';
 import '../../shared/models/holiday_model.dart';
 import '../../shared/providers/semesters_provider.dart';
 import 'providers/holidays_provider.dart';
-import '../imports/holiday_import_dialog.dart';
+import '../../shared/widgets/app_toast.dart';
 
 
 class HolidaysScreen extends ConsumerWidget {
@@ -226,23 +226,7 @@ class HolidaysScreen extends ConsumerWidget {
                   Expanded(
                     child: InkWell(
                       onTap: () {
-                        final semState = ref.read(semestersProvider);
-                        final activeSem = semState.activeSemester;
-                        if (activeSem != null) {
-                          HolidayImportDialog.show(
-                            context,
-                            semesterId: activeSem.id,
-                            onImportSuccess: () {
-                              ref.read(holidaysProvider.notifier).loadHolidays();
-                            },
-                          );
-                        } else {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                              content: Text('Please select an active semester first.'),
-                            ),
-                          );
-                        }
+                        AppToast.showComingSoon(context, feature: 'Upload Holiday List');
                       },
                       borderRadius: BorderRadius.circular(16),
                       child: Container(
@@ -302,30 +286,37 @@ class HolidaysScreen extends ConsumerWidget {
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Row(
-                    children: [
-                      _buildFilterPill(
-                          'All',
-                          state.filterType == 'all',
-                          () => ref
-                              .read(holidaysProvider.notifier)
-                              .setFilter('all')),
-                      const SizedBox(width: 8),
-                      _buildFilterPill(
-                          'Upcoming',
-                          state.filterType == 'upcoming',
-                          () => ref
-                              .read(holidaysProvider.notifier)
-                              .setFilter('upcoming')),
-                      const SizedBox(width: 8),
-                      _buildFilterPill(
-                          'Past',
-                          state.filterType == 'past',
-                          () => ref
-                              .read(holidaysProvider.notifier)
-                              .setFilter('past')),
-                    ],
+                  Expanded(
+                    child: SingleChildScrollView(
+                      scrollDirection: Axis.horizontal,
+                      physics: const BouncingScrollPhysics(),
+                      child: Row(
+                        children: [
+                          _buildFilterPill(
+                              'All',
+                              state.filterType == 'all',
+                              () => ref
+                                  .read(holidaysProvider.notifier)
+                                  .setFilter('all')),
+                          const SizedBox(width: 8),
+                          _buildFilterPill(
+                              'Upcoming',
+                              state.filterType == 'upcoming',
+                              () => ref
+                                  .read(holidaysProvider.notifier)
+                                  .setFilter('upcoming')),
+                          const SizedBox(width: 8),
+                          _buildFilterPill(
+                              'Past',
+                              state.filterType == 'past',
+                              () => ref
+                                  .read(holidaysProvider.notifier)
+                                  .setFilter('past')),
+                        ],
+                      ),
+                    ),
                   ),
+                  const SizedBox(width: 8),
                   const Row(
                     children: [
                       Icon(Icons.swap_vert_rounded,
@@ -353,18 +344,24 @@ class HolidaysScreen extends ConsumerWidget {
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    const Row(
-                      children: [
-                        Icon(Icons.event_available_outlined,
-                            size: 18, color: AppColors.terracotta),
-                        SizedBox(width: 8),
-                        Text(
-                          'Upcoming Holidays',
-                          style: TextStyle(
-                              fontWeight: FontWeight.w700, fontSize: 15),
-                        ),
-                      ],
+                    const Expanded(
+                      child: Row(
+                        children: [
+                          Icon(Icons.event_available_outlined,
+                              size: 18, color: AppColors.terracotta),
+                          SizedBox(width: 8),
+                          Flexible(
+                            child: Text(
+                              'Upcoming Holidays',
+                              style: TextStyle(
+                                  fontWeight: FontWeight.w700, fontSize: 15),
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
+                    const SizedBox(width: 8),
                     GestureDetector(
                       onTap: onNavigateToCalendar,
                       child: Text(
@@ -402,18 +399,24 @@ class HolidaysScreen extends ConsumerWidget {
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    const Row(
-                      children: [
-                        Icon(Icons.history_rounded,
-                            size: 18, color: AppColors.inkMuted),
-                        SizedBox(width: 8),
-                        Text(
-                          'Past Holidays',
-                          style: TextStyle(
-                              fontWeight: FontWeight.w700, fontSize: 15),
-                        ),
-                      ],
+                    const Expanded(
+                      child: Row(
+                        children: [
+                          Icon(Icons.history_rounded,
+                              size: 18, color: AppColors.inkMuted),
+                          SizedBox(width: 8),
+                          Flexible(
+                            child: Text(
+                              'Past Holidays',
+                              style: TextStyle(
+                                  fontWeight: FontWeight.w700, fontSize: 15),
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
+                    const SizedBox(width: 8),
                     Text(
                       'View All',
                       style: AppTypography.bodySmall.copyWith(

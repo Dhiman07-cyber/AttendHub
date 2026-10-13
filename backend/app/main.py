@@ -124,16 +124,62 @@ async def health_check(db: AsyncSession = Depends(get_db)):
         "supabase_ping": supabase_rest_status,
     }
 
+@app.get("/google1ca5ec019afa568b.html", tags=["Verification"])
+async def google_site_verification():
+    """Google Search Console site verification file."""
+    return HTMLResponse(
+        content="google-site-verification: google1ca5ec019afa568b.html",
+        status_code=200,
+        media_type="text/html; charset=utf-8",
+    )
+
 @app.get("/", tags=["General"])
-async def root():
-    return {
-        "app": "AttendiFy",
-        "tagline": "Track · Plan · Stay Above 75%",
-        "version": settings.VERSION,
-        "docs": "/docs",
-        "privacy": "/privacy",
-        "terms": "/terms"
-    }
+async def root(request: Request):
+    accept = request.headers.get("accept", "")
+    if "application/json" in accept and "text/html" not in accept:
+        return {
+            "app": "AttendiFy",
+            "tagline": "Track · Plan · Stay Above 75%",
+            "version": settings.VERSION,
+            "docs": "/docs",
+            "privacy": "/privacy",
+            "terms": "/terms",
+        }
+    return HTMLResponse(
+        content="""<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="google-site-verification" content="google1ca5ec019afa568b" />
+    <title>AttendiFy — Student Attendance & Forecast Engine</title>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #F7F1EC; color: #2C2825; padding: 24px; max-width: 800px; margin: 40px auto; line-height: 1.6; }
+        .card { background: #FFFFFF; border-radius: 16px; padding: 36px; box-shadow: 0 4px 24px rgba(0,0,0,0.05); border: 1px solid #EDE4DB; text-align: center; }
+        h1 { color: #C96E5B; font-size: 32px; margin-bottom: 8px; }
+        p.tagline { font-size: 18px; color: #57524E; margin-bottom: 24px; }
+        p.desc { font-size: 15px; color: #6E6761; max-width: 600px; margin: 0 auto 28px; }
+        .nav-links { display: flex; justify-content: center; gap: 16px; margin-top: 24px; flex-wrap: wrap; }
+        .nav-links a { display: inline-block; padding: 10px 22px; border-radius: 10px; background: #FFFDFC; border: 1px solid #EDE4DB; color: #C96E5B; text-decoration: none; font-weight: 600; font-size: 14px; transition: all 0.2s; }
+        .nav-links a:hover { background: #C96E5B; color: #FFFFFF; }
+        .footer { margin-top: 40px; font-size: 12px; color: #8C827A; }
+    </style>
+</head>
+<body>
+    <div class="card">
+        <h1>AttendiFy</h1>
+        <p class="tagline">Track · Plan · Stay Above 75%</p>
+        <p class="desc">AttendiFy is a student-first attendance tracking and forecasting utility designed to help university students maintain target thresholds and optimize safe absences.</p>
+        <div class="nav-links">
+            <a href="/privacy">Privacy Policy</a>
+            <a href="/terms">Terms of Service</a>
+            <a href="/docs">API Documentation</a>
+        </div>
+        <div class="footer">© 2026 AttendiFy. All rights reserved.</div>
+    </div>
+</body>
+</html>"""
+    )
 
 @app.get("/privacy", response_class=HTMLResponse, tags=["Legal"])
 async def privacy_policy():
@@ -142,6 +188,7 @@ async def privacy_policy():
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="google-site-verification" content="google1ca5ec019afa568b" />
     <title>AttendiFy — Privacy Policy</title>
     <style>
         body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #F7F1EC; color: #2C2825; padding: 24px; max-width: 800px; margin: 0 auto; line-height: 1.6; }
@@ -194,6 +241,7 @@ async def terms_of_service():
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="google-site-verification" content="google1ca5ec019afa568b" />
     <title>AttendiFy — Terms of Service</title>
     <style>
         body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #F7F1EC; color: #2C2825; padding: 24px; max-width: 800px; margin: 0 auto; line-height: 1.6; }
