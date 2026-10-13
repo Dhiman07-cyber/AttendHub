@@ -6,6 +6,8 @@ import '../../core/theme/app_radii.dart';
 import '../../shared/widgets/app_button.dart';
 import '../../shared/widgets/app_text_field.dart';
 import '../../shared/widgets/brand_icons.dart';
+import '../../core/storage/local_storage.dart';
+import '../../core/network/api_endpoints.dart';
 import 'providers/auth_provider.dart';
 
 class AuthScreen extends ConsumerStatefulWidget {
@@ -171,6 +173,40 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
                   ),
                 ),
 
+                // Frosted glass Server URL settings button (for Render / custom backend URL)
+                Positioned(
+                  top: topPadding + 10,
+                  right: 18,
+                  child: InkWell(
+                    onTap: () => _showServerConfigDialog(context),
+                    borderRadius: BorderRadius.circular(20),
+                    child: Container(
+                      width: 38,
+                      height: 38,
+                      decoration: BoxDecoration(
+                        color: Colors.white.withValues(alpha: 0.92),
+                        shape: BoxShape.circle,
+                        border: Border.all(
+                          color: Colors.white.withValues(alpha: 0.8),
+                          width: 1.2,
+                        ),
+                        boxShadow: const [
+                          BoxShadow(
+                            color: Color.fromRGBO(0, 0, 0, 0.08),
+                            blurRadius: 10,
+                            offset: Offset(0, 2),
+                          ),
+                        ],
+                      ),
+                      child: const Icon(
+                        Icons.dns_outlined,
+                        size: 18,
+                        color: AppColors.ink,
+                      ),
+                    ),
+                  ),
+                ),
+
                 // Floating AttendHub logo squircle badge centered vertically in the campus banner
                 Positioned(
                   top: topPadding,
@@ -251,7 +287,7 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
                     child: Text(
                       _isSignUp
                           ? 'Register to track your attendance independently'
-                          : 'Log in to continue to AttendHub',
+                          : 'Log in to continue to AttendiFy',
                       style: AppTypography.bodyMedium.copyWith(
                         color: AppColors.inkMuted,
                         fontSize: 13.5,
@@ -507,6 +543,104 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
               ),
             ),
           ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _showServerConfigDialog(BuildContext context) async {
+    final currentCustom = await LocalStorage().getCustomApiBaseUrl();
+    final controller = TextEditingController(
+      text: currentCustom ?? ApiEndpoints.baseUrl,
+    );
+    if (!context.mounted) return;
+
+    await showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => Padding(
+        padding: EdgeInsets.only(bottom: MediaQuery.of(ctx).viewInsets.bottom),
+        child: Container(
+          padding: const EdgeInsets.fromLTRB(20, 22, 20, 28),
+          decoration: const BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Row(
+                    children: [
+                      Icon(Icons.dns_rounded, color: AppColors.terracotta, size: 22),
+                      SizedBox(width: 8),
+                      Text(
+                        'Backend API Server',
+                        style: TextStyle(fontWeight: FontWeight.w700, fontSize: 17, color: AppColors.ink),
+                      ),
+                    ],
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.close_rounded),
+                    onPressed: () => Navigator.pop(ctx),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 6),
+              const Text(
+                'Enter your Render backend URL (e.g. https://attendify-li14.onrender.com) or local server address.',
+                style: TextStyle(fontSize: 12, color: AppColors.inkMuted),
+              ),
+              const SizedBox(height: 14),
+              TextField(
+                controller: controller,
+                decoration: InputDecoration(
+                  hintText: 'https://attendify-li14.onrender.com/api/v1',
+                  filled: true,
+                  fillColor: AppColors.background,
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: const BorderSide(color: AppColors.divider),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  TextButton(
+                    onPressed: () {
+                      controller.text = ApiEndpoints.renderDefaultUrl;
+                    },
+                    child: const Text('Use Render Default', style: TextStyle(fontSize: 12)),
+                  ),
+                  const Spacer(),
+                  ElevatedButton(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.terracotta,
+                      foregroundColor: Colors.white,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    ),
+                    onPressed: () async {
+                      final raw = controller.text.trim();
+                      if (raw.isEmpty) {
+                        await LocalStorage().saveCustomApiBaseUrl(null);
+                      } else {
+                        await LocalStorage().saveCustomApiBaseUrl(
+                          ApiEndpoints.normalizeBaseUrl(raw),
+                        );
+                      }
+                      if (ctx.mounted) Navigator.pop(ctx);
+                    },
+                    child: const Text('Save Endpoint'),
+                  ),
+                ],
+              ),
+            ],
+          ),
         ),
       ),
     );

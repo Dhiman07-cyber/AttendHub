@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../core/storage/local_storage.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_typography.dart';
 import '../../shared/widgets/landscape_header.dart';
@@ -10,6 +11,7 @@ import '../../shared/widgets/status_badge.dart';
 import '../../shared/widgets/app_button.dart';
 import '../../shared/widgets/state_views.dart';
 import '../../shared/widgets/shimmer_skeleton.dart';
+import '../../shared/models/dashboard_model.dart';
 import '../../shared/models/session_model.dart';
 import 'providers/dashboard_provider.dart';
 
@@ -38,7 +40,16 @@ class DashboardScreen extends ConsumerWidget {
     return Scaffold(
       backgroundColor: AppColors.background,
       body: dashboardAsync.when(
-        loading: () => _buildDashboardSkeleton(context),
+        loading: () {
+          final cached = LocalStorage().getCachedDashboardSync();
+          if (cached != null) {
+            try {
+              final model = DashboardOverviewModel.fromJson(cached);
+              return _buildDashboardContent(context, ref, model);
+            } catch (_) {}
+          }
+          return _buildDashboardSkeleton(context);
+        },
         error: (err, stack) => ErrorRetryView(
           message: err.toString(),
           onRetry: () => ref.refresh(dashboardProvider),
@@ -1381,7 +1392,7 @@ class DashboardScreen extends ConsumerWidget {
               const SizedBox(height: 16),
 
               // Card Content View
-              if (dayState.isLoading) ...[
+              if (dayState.isLoading && displayedSessions.isEmpty && !dayState.isHoliday) ...[
                 _buildSkeletonSessionRow(),
                 const SizedBox(height: 12),
                 _buildSkeletonSessionRow(),

@@ -146,7 +146,7 @@ void main() {
       scaffoldState.openDrawer();
       await tester.pumpAndSettle();
 
-      expect(find.text('AttendHub'), findsOneWidget);
+      expect(find.text('AttendiFy'), findsOneWidget);
       expect(find.text('Track • Plan • Stay Above 75%'), findsOneWidget);
       expect(tester.takeException(), isNull);
     });

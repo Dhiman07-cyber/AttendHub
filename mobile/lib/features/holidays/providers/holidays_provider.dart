@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/network/api_client.dart';
 import '../../../core/network/api_endpoints.dart';
+import '../../../core/storage/local_storage.dart';
 import '../../../shared/models/holiday_model.dart';
 
 class HolidaysState {
@@ -39,6 +40,7 @@ class HolidaysState {
 
 class HolidaysNotifier extends StateNotifier<HolidaysState> {
   final ApiClient _client = ApiClient();
+  final LocalStorage _storage = LocalStorage();
 
   HolidaysNotifier()
       : super(HolidaysState(
@@ -49,21 +51,40 @@ class HolidaysNotifier extends StateNotifier<HolidaysState> {
 
   Future<void> loadHolidays() async {
     if (!mounted) return;
-    state = state.copyWith(isLoading: true, errorMessage: null);
+    if (state.holidays.isEmpty) {
+      final cached = await _storage.getCachedHolidays();
+      if (!mounted) return;
+      if (cached != null && cached.isNotEmpty) {
+        try {
+          final cachedList = cached.map((e) => HolidayModel.fromJson(e)).toList();
+          state = state.copyWith(isLoading: false, holidays: cachedList, errorMessage: null);
+        } catch (_) {
+          state = state.copyWith(isLoading: true, errorMessage: null);
+        }
+      } else {
+        state = state.copyWith(isLoading: true, errorMessage: null);
+      }
+    } else {
+      state = state.copyWith(errorMessage: null);
+    }
+
     try {
       final resp = await _client.dio.get(ApiEndpoints.holidays);
       if (!mounted) return;
-      if (resp.statusCode == 200) {
-        final list = (resp.data as List)
-            .map((e) => HolidayModel.fromJson(e))
+      if (resp.statusCode == 200 && resp.data is List) {
+        final rawList = resp.data as List;
+        await _storage.saveCachedHolidays(rawList);
+        if (!mounted) return;
+        final list = rawList
+            .map((e) => HolidayModel.fromJson(Map<String, dynamic>.from(e as Map)))
             .toList();
-        state = state.copyWith(isLoading: false, holidays: list);
+        state = state.copyWith(isLoading: false, holidays: list, errorMessage: null);
       }
     } catch (e) {
       if (!mounted) return;
       state = state.copyWith(
         isLoading: false,
-        errorMessage: 'Unable to load holidays from server.',
+        errorMessage: state.holidays.isEmpty ? 'Unable to load holidays from server.' : null,
       );
     }
   }

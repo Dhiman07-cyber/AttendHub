@@ -102,6 +102,8 @@ mobile/android/.cxx/
 mobile/android/app/debug/
 mobile/android/app/profile/
 mobile/android/app/release/
+mobile/android/.kotlin/
+*.apk
 
 # Windows
 mobile/windows/flutter/ephemeral/

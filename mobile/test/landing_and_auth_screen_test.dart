@@ -47,7 +47,7 @@ void main() {
       await tester.pumpAndSettle();
 
       // Verify branding and heading
-      expect(find.text('AttendHub'), findsOneWidget);
+      expect(find.text('AttendiFy'), findsOneWidget);
       expect(find.text('Skip'), findsOneWidget);
 
       // RichText check
@@ -165,7 +165,7 @@ void main() {
 
       // Top title and subtitle
       expect(find.text('Welcome Back'), findsOneWidget);
-      expect(find.text('Log in to continue to AttendHub'), findsOneWidget);
+      expect(find.text('Log in to continue to AttendiFy'), findsOneWidget);
 
       // Fields
       expect(find.text('Email / University ID'), findsOneWidget);

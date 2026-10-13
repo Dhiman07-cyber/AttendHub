@@ -3984,7 +3984,7 @@ class _AcademicSetupScreenState extends ConsumerState<AcademicSetupScreen> with 
         children: [
           _buildStepHeader(
             title: 'Past Attendance Records',
-            subtitle: 'Starting AttendHub mid-semester? Enter your verified attended and conducted totals. If you are starting fresh, leave all as 0.',
+            subtitle: 'Starting AttendiFy mid-semester? Enter your verified attended and conducted totals. If you are starting fresh, leave all as 0.',
           ),
 
           if (_subjects.isEmpty)

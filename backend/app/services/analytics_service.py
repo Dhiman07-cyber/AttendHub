@@ -79,9 +79,16 @@ async def get_semester_overall_metrics(
 async def get_analytics_overview(
     db: AsyncSession,
     user_id: str,
-    semester_id: Optional[str] = None
+    semester_id: Optional[str] = None,
+    *,
+    active_sem: Optional[Semester] = None,
+    profile: Optional[AcademicProfile] = None,
+    include_profile_Lookup: bool = True,
 ) -> AnalyticsOverviewOut:
-    if not semester_id:
+    if active_sem is not None:
+        sem = active_sem
+        semester_id = sem.id
+    elif not semester_id:
         sem = await get_active_semester(db, user_id)
         semester_id = sem.id
     else:
@@ -91,9 +98,12 @@ async def get_analytics_overview(
         if not sem:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Semester not found.")
 
-    prof_stmt = select(AcademicProfile).where(AcademicProfile.user_id == user_id)
-    prof_res = await db.execute(prof_stmt)
-    prof = prof_res.scalar_one_or_none()
+    if profile is not None or not include_profile_Lookup:
+        prof = profile
+    else:
+        prof_stmt = select(AcademicProfile).where(AcademicProfile.user_id == user_id)
+        prof_res = await db.execute(prof_stmt)
+        prof = prof_res.scalar_one_or_none()
     min_req = prof.minimum_attendance if prof else 75.0
     target_req = prof.personal_target if prof else 75.0
 

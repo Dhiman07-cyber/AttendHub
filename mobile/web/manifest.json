@@ -1,11 +1,11 @@
 {
-    "name": "AttendHub",
-    "short_name": "AttendHub",
+    "name": "AttendiFy",
+    "short_name": "AttendiFy",
     "start_url": ".",
     "display": "standalone",
     "background_color": "#F7F1EC",
     "theme_color": "#C96E5B",
-    "description": "AttendHub — Student-side attendance tracking and deterministic forecasting utility.",
+    "description": "AttendiFy — Student-side attendance tracking and deterministic forecasting utility.",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
     "icons": [

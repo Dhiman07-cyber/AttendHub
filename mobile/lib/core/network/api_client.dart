@@ -12,8 +12,8 @@ class ApiClient {
   ApiClient._internal() {
     dio = Dio(BaseOptions(
       baseUrl: ApiEndpoints.baseUrl,
-      connectTimeout: const Duration(seconds: 10),
-      receiveTimeout: const Duration(seconds: 10),
+      connectTimeout: const Duration(seconds: 60),
+      receiveTimeout: const Duration(seconds: 60),
       headers: {
         'Content-Type': 'application/json',
         'Accept': 'application/json',
@@ -22,6 +22,12 @@ class ApiClient {
 
     dio.interceptors.add(InterceptorsWrapper(
       onRequest: (options, handler) async {
+        final customUrl = await _storage.getCustomApiBaseUrl();
+        if (customUrl != null && customUrl.isNotEmpty) {
+          options.baseUrl = ApiEndpoints.normalizeBaseUrl(customUrl);
+        } else {
+          options.baseUrl = ApiEndpoints.baseUrl;
+        }
         final token = await _storage.getAccessToken();
         if (token != null && token.isNotEmpty && token != 'demo_token') {
           options.headers['Authorization'] = 'Bearer $token';
@@ -41,10 +47,14 @@ class ApiClient {
           final refreshToken = await _storage.getRefreshToken();
           if (refreshToken != null && refreshToken.isNotEmpty && refreshToken != 'demo_refresh') {
             try {
+              final customUrl = await _storage.getCustomApiBaseUrl();
+              final activeBaseUrl = (customUrl != null && customUrl.isNotEmpty)
+                  ? ApiEndpoints.normalizeBaseUrl(customUrl)
+                  : ApiEndpoints.baseUrl;
               final refreshDio = Dio(BaseOptions(
-                baseUrl: ApiEndpoints.baseUrl,
-                connectTimeout: const Duration(seconds: 10),
-                receiveTimeout: const Duration(seconds: 10),
+                baseUrl: activeBaseUrl,
+                connectTimeout: const Duration(seconds: 60),
+                receiveTimeout: const Duration(seconds: 60),
                 headers: {
                   'Content-Type': 'application/json',
                   'Accept': 'application/json',

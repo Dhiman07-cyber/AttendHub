@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/network/api_client.dart';
 import '../../../core/network/api_endpoints.dart';
+import '../../../core/storage/local_storage.dart';
 import '../../dashboard/providers/dashboard_provider.dart';
 import '../../today/providers/today_provider.dart';
 import '../../subjects/providers/subjects_provider.dart';
@@ -69,28 +70,54 @@ class SetupState {
 class SetupNotifier extends StateNotifier<SetupState> {
   final Ref _ref;
   final ApiClient _client = ApiClient();
+  final LocalStorage _storage = LocalStorage();
 
-  SetupNotifier(this._ref) : super(const SetupState());
+  SetupNotifier(this._ref) : super(const SetupState()) {
+    _restoreCachedStatus();
+  }
+
+  Future<void> _restoreCachedStatus() async {
+    try {
+      final cached = await _storage.getCachedSetupStatus();
+      if (cached != null && mounted && state.status == null) {
+        state = state.copyWith(status: SetupStatusModel.fromJson(cached));
+      }
+    } catch (_) {}
+  }
 
   Future<SetupStatusModel?> checkStatus() async {
     if (!mounted) return null;
-    state = state.copyWith(isLoading: true, errorMessage: null);
+    if (state.status == null) {
+      try {
+        final cached = await _storage.getCachedSetupStatus();
+        if (cached != null && mounted) {
+          state = state.copyWith(status: SetupStatusModel.fromJson(cached));
+        }
+      } catch (_) {}
+    }
+    if (!mounted) return null;
+    state = state.copyWith(isLoading: state.status == null, errorMessage: null);
     try {
       final resp = await _client.dio.get(ApiEndpoints.setupStatus);
       if (!mounted) return null;
-      if (resp.statusCode == 200) {
-        final model = SetupStatusModel.fromJson(resp.data);
-        state = state.copyWith(isLoading: false, status: model);
+      if (resp.statusCode == 200 && resp.data is Map) {
+        final map = Map<String, dynamic>.from(resp.data as Map);
+        final model = SetupStatusModel.fromJson(map);
+        await _storage.saveCachedSetupStatus(map);
+        if (!mounted) return model;
+        state = state.copyWith(isLoading: false, status: model, errorMessage: null);
         return model;
       }
     } catch (e) {
       if (!mounted) return null;
       state = state.copyWith(
         isLoading: false,
-        errorMessage: 'Unable to verify academic setup status.',
+        errorMessage: state.status == null
+            ? 'Unable to verify academic setup status.'
+            : null,
       );
     }
-    return null;
+    return state.status;
   }
 
   Future<Map<String, dynamic>?> fetchSetupData({int? semesterNumber}) async {
@@ -115,11 +142,13 @@ class SetupNotifier extends StateNotifier<SetupState> {
       final resp = await _client.dio.post(ApiEndpoints.setup, data: payload);
       if (!mounted) return false;
       if (resp.statusCode == 200) {
+        await _storage.clearSemesterCache();
         // Reload status
         await checkStatus();
 
         // Invalidate all dependent providers
         _ref.invalidate(dashboardProvider);
+        _ref.invalidate(selectedDateAttendanceProvider);
         _ref.invalidate(todayProvider);
         _ref.invalidate(subjectsProvider);
         _ref.invalidate(calendarProvider);

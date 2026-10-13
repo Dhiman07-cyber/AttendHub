@@ -23,12 +23,26 @@ async def get_dashboard_overview(db: AsyncSession, user_id: str) -> DashboardOve
     active_sem = await get_active_semester(db, user_id)
     sem_stats = _compute_semester_stats(active_sem)
 
-    # 2. Analytics overview
-    analytics = await get_analytics_overview(db, user_id, active_sem.id)
+    # 2. Analytics overview (reuse already-fetched active_sem and prof)
+    analytics = await get_analytics_overview(
+        db,
+        user_id,
+        active_sem.id,
+        active_sem=active_sem,
+        profile=prof,
+        include_profile_Lookup=False,
+    )
 
-    # 3. Today's classes
+    # 3. Today's classes (reuse active_sem and analytics.overall_percentage)
     today_dt = date.today()
-    today_data = await get_today_sessions(db, user_id, today_dt)
+    today_data = await get_today_sessions(
+        db,
+        user_id,
+        today_dt,
+        active_sem=active_sem,
+        precomputed_overall_pct=analytics.overall_percentage,
+        has_precomputed_overall=True,
+    )
 
     # 4. Subjects needing attention (sort by lowest percentage first)
     needing_attention = []

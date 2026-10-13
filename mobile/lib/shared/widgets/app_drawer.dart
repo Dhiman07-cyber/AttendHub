@@ -94,7 +94,7 @@ class _AppDrawerState extends ConsumerState<AppDrawer> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         const Text(
-                          'AttendHub',
+                          'AttendiFy',
                           style: TextStyle(
                             fontSize: 18,
                             fontWeight: FontWeight.w700,

@@ -339,7 +339,7 @@ void main() {
       // Verify Data Management & About
       expect(find.text('Data Management & Export'), findsOneWidget);
       expect(find.text('Export Attendance Report'), findsOneWidget);
-      expect(find.text('About AttendHub'), findsOneWidget);
+      expect(find.text('About AttendiFy'), findsOneWidget);
     });
   });
 }

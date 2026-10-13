@@ -143,5 +143,26 @@ void main() {
       expect(await storage.getAcademicSetupDraft('authenticated_uuid_123'), isNull);
       expect(await storage.getAcademicSetupDraft('default'), isNull);
     });
+
+    test('Stale-While-Revalidate cache persists dashboard/analytics and clears on semester switch', () async {
+      final storage = LocalStorage();
+
+      await storage.saveCachedDashboard({
+        'user_name': 'Dhiman',
+        'overall_percentage': 85.0,
+      });
+      await storage.saveCachedAnalytics({
+        'semester_label': 'Semester 4',
+        'overall_percentage': 85.0,
+      });
+
+      expect(storage.getCachedDashboardSync()?['user_name'], 'Dhiman');
+      expect(storage.getCachedAnalyticsSync()?['semester_label'], 'Semester 4');
+
+      // Switching semesters must isolate and purge semester-scoped SWR cache
+      await storage.clearSemesterCache();
+      expect(storage.getCachedDashboardSync(), isNull);
+      expect(storage.getCachedAnalyticsSync(), isNull);
+    });
   });
 }

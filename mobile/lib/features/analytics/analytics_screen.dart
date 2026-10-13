@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../core/storage/local_storage.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_typography.dart';
 import '../../shared/widgets/landscape_header.dart';
@@ -28,6 +29,60 @@ class AnalyticsScreen extends ConsumerStatefulWidget {
 class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen> {
   int _activeTabIndex = 0; // 0=Overview, 1=Subject-wise, 2=Requirements, 3=Trends
 
+  Widget _buildAnalyticsBody(AnalyticsOverviewModel data) {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.only(bottom: 96),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // 1. Header with landscape artwork and actions
+          LandscapeHeaderWidget(
+            greeting: 'Analytics',
+            userName: 'Attendance Insights',
+            semesterInfo: '${data.semesterLabel} • Overview',
+            showActions: false,
+            topOffset: 76,
+          ),
+
+          const SizedBox(height: 18),
+
+          // 2. Interactive Filter Tabs: Overview | Subject-wise | Requirements | Trends
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: Container(
+              padding: const EdgeInsets.all(4),
+              decoration: BoxDecoration(
+                color: const Color(0xFFF1EBE6),
+                borderRadius: BorderRadius.circular(16),
+              ),
+              child: Row(
+                children: [
+                  Expanded(child: _buildInteractiveTab('Overview', 0)),
+                  Expanded(child: _buildInteractiveTab('Subject-wise', 1)),
+                  Expanded(child: _buildInteractiveTab('Requirements', 2)),
+                  Expanded(child: _buildInteractiveTab('Trends', 3)),
+                ],
+              ),
+            ),
+          ),
+
+          const SizedBox(height: 14),
+
+          // 3. Tab Content View
+          if (_activeTabIndex == 0) ...[
+            _buildOverviewTab(data),
+          ] else if (_activeTabIndex == 1) ...[
+            _buildSubjectWiseTab(data),
+          ] else if (_activeTabIndex == 2) ...[
+            _buildRequirementsTab(data),
+          ] else if (_activeTabIndex == 3) ...[
+            _buildTrendsTab(data),
+          ],
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final analyticsAsync = ref.watch(analyticsProvider);
@@ -35,59 +90,18 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen> {
     return Scaffold(
       backgroundColor: AppColors.background,
       body: analyticsAsync.when(
-        loading: () => _buildAnalyticsSkeleton(context),
+        loading: () {
+          final cached = LocalStorage().getCachedAnalyticsSync();
+          if (cached != null) {
+            try {
+              final model = AnalyticsOverviewModel.fromJson(cached);
+              return _buildAnalyticsBody(model);
+            } catch (_) {}
+          }
+          return _buildAnalyticsSkeleton(context);
+        },
         error: (err, _) => Center(child: Text(err.toString())),
-        data: (data) => SingleChildScrollView(
-          padding: const EdgeInsets.only(bottom: 96),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // 1. Header with landscape artwork and actions
-              LandscapeHeaderWidget(
-                greeting: 'Analytics',
-                userName: 'Attendance Insights',
-                semesterInfo: '${data.semesterLabel} • Overview',
-                showActions: false,
-                topOffset: 76,
-              ),
-
-              const SizedBox(height: 18),
-
-              // 2. Interactive Filter Tabs: Overview | Subject-wise | Requirements | Trends
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                child: Container(
-                  padding: const EdgeInsets.all(4),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFF1EBE6),
-                    borderRadius: BorderRadius.circular(16),
-                  ),
-                  child: Row(
-                    children: [
-                      Expanded(child: _buildInteractiveTab('Overview', 0)),
-                      Expanded(child: _buildInteractiveTab('Subject-wise', 1)),
-                      Expanded(child: _buildInteractiveTab('Requirements', 2)),
-                      Expanded(child: _buildInteractiveTab('Trends', 3)),
-                    ],
-                  ),
-                ),
-              ),
-
-              const SizedBox(height: 14),
-
-              // 3. Tab Content View
-              if (_activeTabIndex == 0) ...[
-                _buildOverviewTab(data),
-              ] else if (_activeTabIndex == 1) ...[
-                _buildSubjectWiseTab(data),
-              ] else if (_activeTabIndex == 2) ...[
-                _buildRequirementsTab(data),
-              ] else if (_activeTabIndex == 3) ...[
-                _buildTrendsTab(data),
-              ],
-            ],
-          ),
-        ),
+        data: (data) => _buildAnalyticsBody(data),
       ),
     );
   }

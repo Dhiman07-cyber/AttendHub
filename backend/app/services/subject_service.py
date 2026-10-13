@@ -43,22 +43,25 @@ async def _get_subject_counts(db: AsyncSession, user_id: str, subject_id: str) -
 
     return attended, absent
 
-async def _get_schedule_summary(db: AsyncSession, subject_id: str) -> Optional[str]:
-    stmt = select(TimetableEntry).where(TimetableEntry.subject_id == subject_id)
-    res = await db.execute(stmt)
-    entries = res.scalars().all()
+def _format_schedule_entries(entries: List[TimetableEntry]) -> Optional[str]:
     if not entries:
         return None
     days_map = {0: "Mon", 1: "Tue", 2: "Wed", 3: "Thu", 4: "Fri", 5: "Sat", 6: "Sun"}
     days = sorted(list(set(e.day_of_week for e in entries if e.day_of_week is not None)))
     day_str = ", ".join(days_map.get(d, "") for d in days)
-    
+
     first_time = next((f"{e.start_time} – {e.end_time}" for e in entries if e.start_time and e.end_time), None)
     if day_str and first_time:
         return f"{day_str} | {first_time}"
     elif day_str:
         return day_str
     return first_time
+
+async def _get_schedule_summary(db: AsyncSession, subject_id: str) -> Optional[str]:
+    stmt = select(TimetableEntry).where(TimetableEntry.subject_id == subject_id)
+    res = await db.execute(stmt)
+    entries = res.scalars().all()
+    return _format_schedule_entries(list(entries))
 
 async def list_subjects(
     db: AsyncSession,
@@ -88,12 +91,24 @@ async def list_subjects(
     
     result = await db.execute(query)
     subjects = result.scalars().all()
+    if not subjects:
+        return []
+
+    from app.services.analytics_service import _fetch_subject_attendance_counts
+    counts_map = await _fetch_subject_attendance_counts(db, user_id, semester_id)
+
+    tt_res = await db.execute(
+        select(TimetableEntry).where(TimetableEntry.semester_id == semester_id)
+    )
+    tt_by_subject: dict[str, List[TimetableEntry]] = {}
+    for entry in tt_res.scalars().all():
+        tt_by_subject.setdefault(entry.subject_id, []).append(entry)
     
     out: List[SubjectOut] = []
     for s in subjects:
-        attended, absent = await _get_subject_counts(db, user_id, s.id)
-        metrics = calculate_subject_metrics(attended, absent, min_req, target_req)
-        schedule = await _get_schedule_summary(db, s.id)
+        c = counts_map.get(s.id, {"attended": 0, "absent": 0})
+        metrics = calculate_subject_metrics(c["attended"], c["absent"], min_req, target_req)
+        schedule = _format_schedule_entries(tt_by_subject.get(s.id, []))
         
         out.append(SubjectOut(
             id=s.id,

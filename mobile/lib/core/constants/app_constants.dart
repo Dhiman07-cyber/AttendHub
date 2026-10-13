@@ -1,5 +1,5 @@
 class AppConstants {
-  static const String appName = 'AttendHub';
+  static const String appName = 'AttendiFy';
   static const String tagline = 'Track · Plan · Stay Above';
   
   static const double defaultMinimumAttendance = 75.0;

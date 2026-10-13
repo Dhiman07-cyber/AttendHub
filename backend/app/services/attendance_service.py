@@ -69,12 +69,17 @@ def validate_attendance_edit_window(target_date: date) -> None:
 async def get_today_sessions(
     db: AsyncSession,
     user_id: str,
-    target_date: Optional[date] = None
+    target_date: Optional[date] = None,
+    *,
+    active_sem: Optional[Semester] = None,
+    precomputed_overall_pct: Optional[float] = None,
+    has_precomputed_overall: bool = False,
 ) -> TodayOverviewOut:
     if not target_date:
         target_date = date.today()
 
-    active_sem = await get_active_semester(db, user_id)
+    if active_sem is None:
+        active_sem = await get_active_semester(db, user_id)
 
     # 1. Check if registered holiday covers this date
     hol_stmt = select(Holiday).where(
@@ -235,8 +240,12 @@ async def get_today_sessions(
     # Sort timed first, then untimed
     sessions_out.sort(key=lambda s: (0 if s.start_time else 1, s.start_time or "99:99"))
 
-    from app.services.analytics_service import get_semester_overall_metrics
-    overall_res = await get_semester_overall_metrics(db, user_id, active_sem.id)
+    if has_precomputed_overall:
+        overall_pct = precomputed_overall_pct
+    else:
+        from app.services.analytics_service import get_semester_overall_metrics
+        overall_res = await get_semester_overall_metrics(db, user_id, active_sem.id)
+        overall_pct = overall_res.get("overall_percentage")
 
     date_str = target_date.strftime("%A, %d %B %Y")
 
@@ -249,8 +258,8 @@ async def get_today_sessions(
         pending_classes=pending_count,
         not_held_classes=not_held_count,
         sessions=sessions_out,
-        current_overall_percentage=overall_res.get("overall_percentage"),
-        projected_overall_percentage=overall_res.get("overall_percentage"),
+        current_overall_percentage=overall_pct,
+        projected_overall_percentage=overall_pct,
         projected_delta=0.0
     )
 

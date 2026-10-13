@@ -144,7 +144,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                   ),
                   const SizedBox(width: 10),
                   const Text(
-                    'AttendHub',
+                    'AttendiFy',
                     style: TextStyle(
                       fontFamily: 'serif',
                       fontSize: 20,

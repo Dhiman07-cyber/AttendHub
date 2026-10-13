@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/network/api_client.dart';
 import '../../../core/network/api_endpoints.dart';
+import '../../../core/storage/local_storage.dart';
 import '../../../shared/models/subject_model.dart';
 
 class SubjectsState {
@@ -48,6 +49,7 @@ class SubjectsState {
 
 class SubjectsNotifier extends StateNotifier<SubjectsState> {
   final ApiClient _client = ApiClient();
+  final LocalStorage _storage = LocalStorage();
 
   SubjectsNotifier()
       : super(SubjectsState(
@@ -58,21 +60,40 @@ class SubjectsNotifier extends StateNotifier<SubjectsState> {
 
   Future<void> loadSubjects() async {
     if (!mounted) return;
-    state = state.copyWith(isLoading: true, errorMessage: null);
+    if (state.subjects.isEmpty) {
+      final cached = await _storage.getCachedSubjects();
+      if (!mounted) return;
+      if (cached != null && cached.isNotEmpty) {
+        try {
+          final cachedList = cached.map((e) => SubjectModel.fromJson(e)).toList();
+          state = state.copyWith(isLoading: false, subjects: cachedList, errorMessage: null);
+        } catch (_) {
+          state = state.copyWith(isLoading: true, errorMessage: null);
+        }
+      } else {
+        state = state.copyWith(isLoading: true, errorMessage: null);
+      }
+    } else {
+      state = state.copyWith(errorMessage: null);
+    }
+
     try {
       final resp = await _client.dio.get(ApiEndpoints.subjects);
       if (!mounted) return;
-      if (resp.statusCode == 200) {
-        final list = (resp.data as List)
-            .map((e) => SubjectModel.fromJson(e))
+      if (resp.statusCode == 200 && resp.data is List) {
+        final rawList = resp.data as List;
+        await _storage.saveCachedSubjects(rawList);
+        if (!mounted) return;
+        final list = rawList
+            .map((e) => SubjectModel.fromJson(Map<String, dynamic>.from(e as Map)))
             .toList();
-        state = state.copyWith(isLoading: false, subjects: list);
+        state = state.copyWith(isLoading: false, subjects: list, errorMessage: null);
       }
     } catch (e) {
       if (!mounted) return;
       state = state.copyWith(
         isLoading: false,
-        errorMessage: 'Unable to load subjects from server.',
+        errorMessage: state.subjects.isEmpty ? 'Unable to load subjects from server.' : null,
       );
     }
   }

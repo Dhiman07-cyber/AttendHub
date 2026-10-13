@@ -101,15 +101,20 @@ AttendHub/
 │   ├── test/                 # Flutter unit & calculation tests
 │   └── pubspec.yaml          # Flutter dependencies
 │
-├── docs/                     # Comprehensive Documentation
-│   ├── architecture.md       # Architectural deep-dive
-│   ├── api.md                # Complete REST API reference
-│   ├── database.md           # Database ER diagrams and schema
+├── docs/                     # Comprehensive Documentation Suite
+│   ├── README.md             # Central documentation hub & index
+│   ├── architecture.md       # Architectural deep-dive & math engine
+│   ├── api.md                # Complete REST API reference (v1)
+│   ├── database.md           # Database ER diagrams, schema & RLS
+│   ├── frontend-and-design.md # Mobile architecture & Liquid Glass UI system
+│   ├── security.md           # Security architecture & OWASP compliance
+│   ├── deployment.md         # Cloud deployment (Render, Supabase, Docker, APK)
 │   ├── development.md        # Local setup & development workflow
-│   └── testing.md            # Testing strategy & verification report
+│   ├── testing.md            # Testing strategy & verification report
+│   └── agent-skills.md       # Specialist engineering skills inventory
 │
 ├── docker-compose.yml        # Full-stack container orchestration
-├── .env.example              # Environment variables template
+├── render.yaml               # Render cloud deployment blueprint
 └── README.md                 # Project README
 ```
 
@@ -164,29 +169,7 @@ cd backend
 pytest -v
 ```
 
-All 18 test suites pass:
-```text
-tests/test_api_endpoints.py::test_full_api_flow PASSED                   [  5%]
-tests/test_boundary_calculations.py::test_below_minimum_safe_absences_is_always_zero PASSED [ 11%]
-tests/test_boundary_calculations.py::test_exact_target_and_recovery_equations PASSED [ 16%]
-tests/test_boundary_calculations.py::test_safe_absences_margin_equation PASSED [ 22%]
-tests/test_boundary_calculations.py::test_zero_conducted_safe_behavior PASSED [ 27%]
-tests/test_boundary_calculations.py::test_time_status_chronology_and_untimed_stability PASSED [ 33%]
-tests/test_calculations.py::test_subject_zero_conducted_classes PASSED   [ 38%]
-tests/test_calculations.py::test_subject_below_minimum_recovery_forecast PASSED [ 44%]
-tests/test_calculations.py::test_subject_safe_absence_forecast PASSED    [ 50%]
-tests/test_calculations.py::test_subject_large_safe_absence_buffer PASSED [ 55%]
-tests/test_calculations.py::test_overall_metrics_aggregation_vs_averaging PASSED [ 61%]
-tests/test_calculations.py::test_target_already_reached PASSED           [ 66%]
-tests/test_insight_engine.py::test_generate_insights_triggers_recovery PASSED [ 72%]
-tests/test_invariants_and_security.py::test_75_percent_defaults_and_clean_onboarding PASSED [ 77%]
-tests/test_invariants_and_security.py::test_cross_user_isolation_and_idor_prevention PASSED [ 83%]
-tests/test_invariants_and_security.py::test_semester_switching_context_isolation PASSED [ 88%]
-tests/test_invariants_and_security.py::test_file_upload_security_validation PASSED [ 94%]
-tests/test_invariants_and_security.py::test_academic_setup_wizard_lifecycle_and_completeness PASSED [100%]
-
-============================= 18 passed in 120s ===============================
-```
+All 19 test suites pass across domain math, security invariants, and full API flows.
 
 ### Flutter Tests:
 ```bash
@@ -194,17 +177,22 @@ cd mobile
 flutter test
 ```
 
-All 40 unit, widget, shell, and responsive viewport tests pass across 320px to 430px+.
+All 58 unit, widget, shell, and responsive viewport tests pass across 320px to 430px+.
 
 ---
 
 ## 📖 Documentation
 
+- **[Documentation Hub & Index](docs/README.md)**
 - [Architecture & Design Details](docs/architecture.md)
 - [REST API Specification](docs/api.md)
-- [Database Schema & ER Reference](docs/database.md)
+- [Database Schema & Supabase RLS Reference](docs/database.md)
+- [Frontend Architecture & UI/UX Design System](docs/frontend-and-design.md)
+- [Security Architecture & OWASP Compliance](docs/security.md)
+- [Cloud Deployment, Docker & Release Build Guide](docs/deployment.md)
 - [Local Development Guide](docs/development.md)
 - [Testing & Quality Verification](docs/testing.md)
+- [Agent Skills & Preflight Inventory](docs/agent-skills.md)
 
 ---
 

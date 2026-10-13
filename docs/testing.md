@@ -1,106 +1,58 @@
 # AttendHub — Testing Strategy & Verification Report
 
-AttendHub employs a multi-tier testing strategy prioritizing mathematical correctness, boundary condition handling, data isolation, and integration reliability.
+AttendHub employs a multi-tier automated testing strategy prioritizing mathematical determinism, boundary condition safety, multi-tenant data isolation, and responsive UI layout verification.
 
 ---
 
 ## 1. Testing Philosophy
 
-1. **Deterministic Calculations First**: Attendance rules directly impact student academic standing. Every formula is isolated into pure functions and tested against edge cases.
-2. **Auditability**: Attendance edits must produce an immutable audit log with previous status, new status, and timestamp.
-3. **Semester & User Isolation**: Cross-tenant and cross-semester leaks are validated and blocked.
+1. **Deterministic Calculations First**: Attendance calculations directly guide student academic decisions. Every formula is isolated into pure functions and tested against boundary conditions.
+2. **Auditability & Window Enforcement**: Attendance marks are restricted to the rolling 3-day window (`[today - 2 days, today]`), and corrections must produce immutable `AttendanceAuditLog` records.
+3. **Semester & User Isolation**: Cross-tenant (`user_id`) and cross-semester (`semester_id`) leaks are explicitly tested and blocked.
+4. **Overflow-Free Responsive UI**: Every screen and modal dialog is verified across narrow (`320px`) to large (`430px+`) mobile viewports.
 
 ---
 
-## 2. Test Matrix & Edge-Case Coverage
+## 2. Backend Test Suite (`pytest`)
 
-| Scenario | Tested In | Expected Behavior |
+Located in [`backend/tests/`](../backend/tests/), comprising **19 automated test cases** across 5 modules:
+
+| Test Module | Test Cases | Scenarios Verified |
 |---|---|---|
-| **Zero conducted classes** | `test_calculations.py` | Returns `None` (`conducted=0`), UI displays *"No attendance data yet"* rather than 0% or division error. |
-| **Current attendance = 100%** | `test_calculations.py` | Accurate safe absences calculated, target recovery returns `0` with *"Already at target"*. |
-| **Current attendance below minimum** | `test_calculations.py` | Safe absences strictly returns `0` (never advises missing classes when deficient). |
-| **Current attendance at/above target** | `test_calculations.py` | Target recovery returns `0` with status confirmation. |
-| **Target recovery formula** | `test_calculations.py` | Solves $\lceil \frac{r \cdot C - A}{1 - r} \rceil$ accurately for fractional boundaries. |
-| **Safe absences formula** | `test_calculations.py` | Solves $\lfloor \frac{A - r \cdot C}{r} \rfloor$ accurately without dipping below threshold. |
-| **Not-Held / Cancelled exclusion** | `test_calculations.py` | Classes marked `NOT_HELD` or cancelled do not increment conducted count. |
-| **Holiday exclusion** | `test_calculations.py` | Holidays are excluded from conducted totals. |
-| **Whole-semester aggregation** | `test_calculations.py` | Raw sums aggregated ($\sum A / \sum C$), never averaging subject percentages. |
-| **Registration auto-onboarding** | `test_api_endpoints.py` | Creates user, profile, default semester 5, and subjects in a single transaction (or clean without demo). |
-| **Token lifecycle & auth** | `test_api_endpoints.py` | Validates Argon2id password hash, JWT generation, and protected route access. |
-| **Insight engine natural language** | `test_insight_engine.py` | Validates natural language advice suitable for students. |
-| **75% Default Invariants** | `test_invariants_and_security.py` | Verifies default minimum attendance and personal target are strictly 75.0% across profile and auth. |
-| **Cross-User IDOR Prevention** | `test_invariants_and_security.py` | Authenticated user A cannot read/mutate subjects or data belonging to user B (403 Forbidden). |
-| **Semester Context Isolation** | `test_invariants_and_security.py` | Switching active semester completely isolates subject lists and analytics; no cross-semester leaks. |
-| **File Upload Security & MIME check** | `test_invariants_and_security.py` | Rejects executable/unsupported extensions and oversized files; validates MIME types. |
-| **Below Minimum Safe Absences** | `test_boundary_calculations.py` | Confirms safe absences is strictly 0 when attendance is below minimum (never advises absence). |
-| **Exact Recovery & Target Ceiling** | `test_boundary_calculations.py` | Validates $\lceil \frac{r \cdot C - A}{1 - r} \rceil$ ceiling and fractional target bounds. |
-| **Untimed Session Stability** | `test_boundary_calculations.py` | Verifies chronological time status resolution (`DONE`, `CURRENT`, `UPCOMING`) and untimed session safety. |
+| `test_calculations.py` | 6 | Zero conducted classes (`None` / `"No attendance data yet"`), below-minimum recovery forecast ($\lceil \frac{rC - A}{1 - r} \rceil$), safe absence margin ($\lfloor \frac{A - rC}{r} \rfloor$), large buffers, raw semester aggregation vs. averaging, and `"Already at target"` state. |
+| `test_boundary_calculations.py` | 5 | Safe absences strictly `0` when below minimum, exact ceiling/floor fractional boundaries, zero-conducted safety, and chronological time status resolution (`Done`, `Now`, `Upcoming`, untimed `None`). |
+| `test_insight_engine.py` | 1 | Rule-based natural-language recovery and buffer insights generation. |
+| `test_invariants_and_security.py` | 6 | `75.0%` defaults & clean onboarding, cross-user IDOR prevention (`403`/`404`), semester context switching isolation, file upload MIME/extension/size validation, 7-step Academic Setup Wizard transactional lifecycle, and rolling 3-day attendance edit window + read-only `GET /attendance/day`. |
+| `test_api_endpoints.py` | 1 | End-to-end authenticated API workflow across registration, profile, subjects, timetable, sessions, attendance marking, corrections, dashboard, calendar, holidays, and analytics. |
 
----
-
-## 3. Running Backend Tests
-
-Navigate to the `backend/` directory and execute:
-
+### Running Backend Tests
 ```bash
+cd backend
 pytest -v
 ```
 
-### Test Output Verification:
-```text
-============================= test session starts =============================
-platform win32 -- Python 3.14.5, pytest-9.1.1, pluggy-1.6.0
-rootdir: C:\Users\ADMIN\Desktop\Projects\AttendHub\backend
-configfile: pyproject.toml
-testpaths: tests
-plugins: anyio-4.14.0, asyncio-1.4.0
-collected 18 items
-
-tests/test_api_endpoints.py::test_full_api_flow PASSED                   [  5%]
-tests/test_boundary_calculations.py::test_below_minimum_safe_absences_is_always_zero PASSED [ 11%]
-tests/test_boundary_calculations.py::test_exact_target_and_recovery_equations PASSED [ 16%]
-tests/test_boundary_calculations.py::test_safe_absences_margin_equation PASSED [ 22%]
-tests/test_boundary_calculations.py::test_zero_conducted_safe_behavior PASSED [ 27%]
-tests/test_boundary_calculations.py::test_time_status_chronology_and_untimed_stability PASSED [ 33%]
-tests/test_calculations.py::test_subject_zero_conducted_classes PASSED   [ 38%]
-tests/test_calculations.py::test_subject_below_minimum_recovery_forecast PASSED [ 44%]
-tests/test_calculations.py::test_subject_safe_absence_forecast PASSED    [ 50%]
-tests/test_calculations.py::test_subject_large_safe_absence_buffer PASSED [ 55%]
-tests/test_calculations.py::test_overall_metrics_aggregation_vs_averaging PASSED [ 61%]
-tests/test_calculations.py::test_target_already_reached PASSED           [ 66%]
-tests/test_insight_engine.py::test_generate_insights_triggers_recovery PASSED [ 72%]
-tests/test_invariants_and_security.py::test_75_percent_defaults_and_clean_onboarding PASSED [ 77%]
-tests/test_invariants_and_security.py::test_cross_user_isolation_and_idor_prevention PASSED [ 83%]
-tests/test_invariants_and_security.py::test_semester_switching_context_isolation PASSED [ 88%]
-tests/test_invariants_and_security.py::test_file_upload_security_validation PASSED [ 94%]
-tests/test_invariants_and_security.py::test_academic_setup_wizard_lifecycle_and_completeness PASSED [100%]
-
-============================= 18 passed in 120s ===============================
-```
-
 ---
 
-## 4. Running Flutter Tests
+## 3. Flutter Mobile Test Suite (`flutter test`)
 
-Navigate to the `mobile/` directory and execute:
+Located in [`mobile/test/`](../mobile/test/), comprising **58 automated unit, widget, and integration tests** across 10 test suites:
 
+| Test File | Tests | Coverage Focus |
+|---|---|---|
+| `attendance_calculation_test.dart` | 10 | Client-side optimistic calculation parity with backend formulas, zero-conducted state, safe absence floor, and target recovery ceiling. |
+| `setup_shell_and_import_test.dart` | 14 | `PersistentTopBar`, 7-step `AcademicSetupScreen` navigation, `RoutineImportDialog` & `HolidayImportDialog` draft parsing, editing, confirmation, and zero-retention discard. |
+| `responsive_devices_and_navigation_test.dart` | 6 | Multi-device viewport verification (`320px`, `360px`, `375px`, `393px`, `412px`, `430px+`), bottom navigation tap & drag-pill interactions, and drawer routing. |
+| `routine_weekly_grid_test.dart` | 6 | Weekly timetable grid rendering, real persisted attendance status badges (`ATTENDED`, `ABSENT`, `NOT_HELD`, unmarked), and week offset navigation. |
+| `session_persistence_test.dart` | 6 | Token persistence in `LocalStorage`, session restoration on app launch, and clean logout state reset. |
+| `remediation_phase_b_c_d_test.dart` | 5 | Rolling 3-day attendance window UI controls, semester switching provider invalidation, and setup completeness checks. |
+| `landing_and_auth_screen_test.dart` | 4 | Onboarding flow, Login / Sign-Up mode switching, form validation, and Server URL configuration dialog. |
+| `dashboard_analytics_settings_test.dart` | 3 | Dashboard summary cards, Analytics forecasting table, and Settings threshold configuration. |
+| `subject_detail_overflow_test.dart` | 3 | Long subject titles, faculty names, and badge wrapping without `RenderFlex` overflow on narrow screens. |
+| `widget_test.dart` | 1 | Core application smoke test and theme initialization. |
+
+### Running Flutter Tests
 ```bash
+cd mobile
+flutter analyze
 flutter test
 ```
-
-### Verified Flutter Scenarios (40 Tests Passed):
-- `attendance_calculation_test.dart` (5 tests):
-  - Validates client-side optimistic calculation matching server mathematical behavior.
-  - Validates zero conducted handling (`conducted == 0` -> null percentage / "No attendance data yet").
-  - Validates safe absence limits ($x = \lfloor \frac{A - r \cdot C}{r} \rfloor$ and $0$ when below threshold).
-  - Validates recovery required calculations ($x = \lceil \frac{r \cdot C - A}{1 - r} \rceil$).
-- `widget_test.dart` (17 tests):
-  - Theme token validation, liquid glass cards, landscape vector headers, and attendance controls.
-- `setup_shell_and_import_test.dart` (18 tests):
-  - PersistentTopBar: Menu button, title, notification badge, and avatar render cleanly.
-  - AcademicSetupScreen: 7-step navigation, profile inputs, subject creation, and review step validation.
-  - Responsive Viewport Verification: RenderFlex overflow-free validation across `320px`, `360px`, `375px`, `393px`, `412px`, and `430px+` viewports.
-  - RoutineImportDialog: CSV/text timetable parsing, editable draft rows, and explicit discard/save callbacks.
-  - HolidayImportDialog: CSV/text holiday parsing, category extraction, editable cards, and atomic save confirmation.
-  - Zero-retention draft lifecycle: Discarding an import clears local draft state with zero persisted entities.
-

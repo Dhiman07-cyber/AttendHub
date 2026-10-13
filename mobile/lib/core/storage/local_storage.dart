@@ -22,21 +22,31 @@ class LocalStorage {
   }
 
   Future<String?> getAccessToken() async {
+    final prefs = await SharedPreferences.getInstance();
+    final fastToken = prefs.getString(AppConstants.keyAccessToken);
+    if (fastToken != null && fastToken.isNotEmpty) return fastToken;
     try {
       final token = await _secureStorage.read(key: AppConstants.keyAccessToken);
-      if (token != null && token.isNotEmpty) return token;
+      if (token != null && token.isNotEmpty) {
+        await prefs.setString(AppConstants.keyAccessToken, token);
+        return token;
+      }
     } catch (_) {}
-    final prefs = await SharedPreferences.getInstance();
-    return prefs.getString(AppConstants.keyAccessToken);
+    return null;
   }
 
   Future<String?> getRefreshToken() async {
+    final prefs = await SharedPreferences.getInstance();
+    final fastToken = prefs.getString(AppConstants.keyRefreshToken);
+    if (fastToken != null && fastToken.isNotEmpty) return fastToken;
     try {
       final token = await _secureStorage.read(key: AppConstants.keyRefreshToken);
-      if (token != null && token.isNotEmpty) return token;
+      if (token != null && token.isNotEmpty) {
+        await prefs.setString(AppConstants.keyRefreshToken, token);
+        return token;
+      }
     } catch (_) {}
-    final prefs = await SharedPreferences.getInstance();
-    return prefs.getString(AppConstants.keyRefreshToken);
+    return null;
   }
 
   Future<void> saveUser(UserModel user) async {
@@ -77,6 +87,9 @@ class LocalStorage {
     await prefs.remove(AppConstants.keyUserEmail);
     await prefs.remove(AppConstants.keyUserName);
     await prefs.remove(AppConstants.keyUserAvatar);
+    await prefs.remove(_keyCachedSemesters);
+    await prefs.remove(_keyCachedSetupStatus);
+    await clearSemesterCache();
     await clearNavState();
   }
 
@@ -222,6 +235,19 @@ class LocalStorage {
   }
 
   static const String _keyCachedSemesters = 'attendhub_cached_semesters_list';
+  static const String _keyCachedSetupStatus = 'attendhub_cached_setup_status';
+  static const String _keyCachedDashboard = 'attendhub_cached_dashboard';
+  static const String _keyCachedAnalytics = 'attendhub_cached_analytics';
+  static const String _keyCachedSubjects = 'attendhub_cached_subjects';
+  static const String _keyCachedHolidays = 'attendhub_cached_holidays';
+  static const String _keyCachedWeeklyStatusPrefix = 'attendhub_cached_weekly_status_';
+  static const String _keyCachedDayAttendancePrefix = 'attendhub_cached_day_attendance_';
+
+  Map<String, dynamic>? _memDashboard;
+  Map<String, dynamic>? _memAnalytics;
+
+  Map<String, dynamic>? getCachedDashboardSync() => _memDashboard;
+  Map<String, dynamic>? getCachedAnalyticsSync() => _memAnalytics;
 
   Future<void> saveCachedSemesters(String jsonStr) async {
     final prefs = await SharedPreferences.getInstance();
@@ -231,6 +257,153 @@ class LocalStorage {
   Future<String?> getCachedSemesters() async {
     final prefs = await SharedPreferences.getInstance();
     return prefs.getString(_keyCachedSemesters);
+  }
+
+  Future<void> saveCachedSetupStatus(Map<String, dynamic> data) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_keyCachedSetupStatus, jsonEncode(data));
+  }
+
+  Future<Map<String, dynamic>?> getCachedSetupStatus() async {
+    final prefs = await SharedPreferences.getInstance();
+    final str = prefs.getString(_keyCachedSetupStatus);
+    if (str != null && str.isNotEmpty) return _tryParseDraft(str);
+    return null;
+  }
+
+  Future<void> saveCachedDashboard(Map<String, dynamic> data) async {
+    _memDashboard = data;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_keyCachedDashboard, jsonEncode(data));
+  }
+
+  Future<Map<String, dynamic>?> getCachedDashboard() async {
+    final prefs = await SharedPreferences.getInstance();
+    final str = prefs.getString(_keyCachedDashboard);
+    if (str != null && str.isNotEmpty) {
+      final parsed = _tryParseDraft(str);
+      if (parsed != null) {
+        _memDashboard = parsed;
+        return parsed;
+      }
+    }
+    return null;
+  }
+
+  Future<void> saveCachedAnalytics(Map<String, dynamic> data) async {
+    _memAnalytics = data;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_keyCachedAnalytics, jsonEncode(data));
+  }
+
+  Future<Map<String, dynamic>?> getCachedAnalytics() async {
+    final prefs = await SharedPreferences.getInstance();
+    final str = prefs.getString(_keyCachedAnalytics);
+    if (str != null && str.isNotEmpty) {
+      final parsed = _tryParseDraft(str);
+      if (parsed != null) {
+        _memAnalytics = parsed;
+        return parsed;
+      }
+    }
+    return null;
+  }
+
+  Future<void> saveCachedSubjects(List<dynamic> list) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_keyCachedSubjects, jsonEncode(list));
+  }
+
+  Future<List<Map<String, dynamic>>?> getCachedSubjects() async {
+    final prefs = await SharedPreferences.getInstance();
+    final str = prefs.getString(_keyCachedSubjects);
+    if (str != null && str.isNotEmpty) {
+      try {
+        final decoded = jsonDecode(str);
+        if (decoded is List) {
+          return decoded.map((e) => Map<String, dynamic>.from(e as Map)).toList();
+        }
+      } catch (_) {}
+    }
+    return null;
+  }
+
+  Future<void> saveCachedHolidays(List<dynamic> list) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_keyCachedHolidays, jsonEncode(list));
+  }
+
+  Future<List<Map<String, dynamic>>?> getCachedHolidays() async {
+    final prefs = await SharedPreferences.getInstance();
+    final str = prefs.getString(_keyCachedHolidays);
+    if (str != null && str.isNotEmpty) {
+      try {
+        final decoded = jsonDecode(str);
+        if (decoded is List) {
+          return decoded.map((e) => Map<String, dynamic>.from(e as Map)).toList();
+        }
+      } catch (_) {}
+    }
+    return null;
+  }
+
+  Future<void> saveCachedWeeklyStatus(int offset, Map<String, dynamic> data) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('$_keyCachedWeeklyStatusPrefix$offset', jsonEncode(data));
+  }
+
+  Future<Map<String, dynamic>?> getCachedWeeklyStatus(int offset) async {
+    final prefs = await SharedPreferences.getInstance();
+    final str = prefs.getString('$_keyCachedWeeklyStatusPrefix$offset');
+    if (str != null && str.isNotEmpty) return _tryParseDraft(str);
+    return null;
+  }
+
+  Future<void> saveCachedDayAttendance(String date, Map<String, dynamic> data) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('$_keyCachedDayAttendancePrefix$date', jsonEncode(data));
+  }
+
+  Future<Map<String, dynamic>?> getCachedDayAttendance(String date) async {
+    final prefs = await SharedPreferences.getInstance();
+    final str = prefs.getString('$_keyCachedDayAttendancePrefix$date');
+    if (str != null && str.isNotEmpty) return _tryParseDraft(str);
+    return null;
+  }
+
+  Future<void> clearSemesterCache() async {
+    _memDashboard = null;
+    _memAnalytics = null;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove(_keyCachedDashboard);
+    await prefs.remove(_keyCachedAnalytics);
+    await prefs.remove(_keyCachedSubjects);
+    await prefs.remove(_keyCachedHolidays);
+    final keys = prefs.getKeys().toList();
+    for (final k in keys) {
+      if (k.startsWith(_keyCachedWeeklyStatusPrefix) ||
+          k.startsWith(_keyCachedDayAttendancePrefix)) {
+        await prefs.remove(k);
+      }
+    }
+  }
+
+  static const String _keyCustomApiBaseUrl = 'attendhub_custom_api_base_url';
+
+  Future<void> saveCustomApiBaseUrl(String? url) async {
+    final prefs = await SharedPreferences.getInstance();
+    if (url == null || url.trim().isEmpty) {
+      await prefs.remove(_keyCustomApiBaseUrl);
+    } else {
+      await prefs.setString(_keyCustomApiBaseUrl, url.trim());
+    }
+  }
+
+  Future<String?> getCustomApiBaseUrl() async {
+    final prefs = await SharedPreferences.getInstance();
+    final val = prefs.getString(_keyCustomApiBaseUrl);
+    if (val != null && val.trim().isEmpty) return null;
+    return val?.trim();
   }
 }
 

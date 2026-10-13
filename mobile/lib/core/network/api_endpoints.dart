@@ -1,8 +1,34 @@
+import 'package:flutter/foundation.dart';
+
 class ApiEndpoints {
-  static const String baseUrl = String.fromEnvironment(
+  static const String renderDefaultUrl = 'https://attendify-li14.onrender.com/api/v1';
+  static const String localDefaultUrl = 'http://127.0.0.1:8000/api/v1';
+
+  static const String _envBaseUrl = String.fromEnvironment(
     'API_BASE_URL',
-    defaultValue: 'http://127.0.0.1:8000/api/v1',
+    defaultValue: '',
   );
+
+  static String get baseUrl {
+    if (_envBaseUrl.isNotEmpty) {
+      return normalizeBaseUrl(_envBaseUrl);
+    }
+    if (!kIsWeb) {
+      return renderDefaultUrl;
+    }
+    return localDefaultUrl;
+  }
+
+  static String normalizeBaseUrl(String rawUrl) {
+    var trimmed = rawUrl.trim();
+    while (trimmed.endsWith('/')) {
+      trimmed = trimmed.substring(0, trimmed.length - 1);
+    }
+    if (!trimmed.endsWith('/api/v1')) {
+      trimmed = '$trimmed/api/v1';
+    }
+    return trimmed;
+  }
 
   // Auth
   static const String register = '/auth/register';

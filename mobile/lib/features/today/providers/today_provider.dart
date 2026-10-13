@@ -168,28 +168,171 @@ class TodayNotifier extends StateNotifier<TodayState> {
     await loadToday(offset: offset);
   }
 
+  void _applyWeeklyStatusData(
+    Map<String, dynamic> wData, {
+    required int currentOffset,
+    required (String, String, String) fallbackRange,
+    required bool isLoading,
+    required bool isLoadingWeek,
+  }) {
+    final ttEntries = <Map<String, dynamic>>[];
+    final dayStatusMap = <int, Map<String, dynamic>>{};
+    final todaySessions = <ClassSessionModel>[];
+    final startStr = wData['start_date']?.toString();
+    final endStr = wData['end_date']?.toString();
+    final weekLabelFromApi = wData['week_label']?.toString();
+    final dateRangeFromApi = wData['date_range_label']?.toString();
+    String semLabel = state.semesterLabel;
+    if (wData['semester_label'] != null) {
+      semLabel = wData['semester_label'].toString();
+    }
+
+    final daysList = wData['days'] as List? ?? [];
+    for (final dayItem in daysList) {
+      final dMap = Map<String, dynamic>.from(dayItem as Map);
+      final dayIdx = dMap['day_of_week'] is int ? dMap['day_of_week'] as int : 0;
+      final isHoliday = dMap['is_holiday'] == true;
+      final isToday = dMap['is_today'] == true;
+      final isPast = dMap['is_past'] == true;
+      final isFuture = dMap['is_future'] == true;
+      final holidayTitle = dMap['holiday_title']?.toString();
+
+      final slotsList = dMap['slots'] as List? ?? [];
+      int attendedCount = 0;
+
+      for (final slotItem in slotsList) {
+        final sMap = Map<String, dynamic>.from(slotItem as Map);
+        final isAttended = sMap['is_attended'] == true;
+        if (isAttended) attendedCount++;
+
+        ttEntries.add({
+          'id': sMap['timetable_entry_id'],
+          'timetable_entry_id': sMap['timetable_entry_id'],
+          'subject_id': sMap['subject_id'],
+          'subject_name': sMap['subject_name'] ?? 'Class',
+          'subject_code': sMap['subject_code'],
+          'subject_color': sMap['subject_color'] ?? '#C96E5B',
+          'subject_icon': sMap['subject_icon'] ?? 'book',
+          'day_of_week': dayIdx,
+          'date': sMap['date']?.toString(),
+          'start_time': sMap['start_time'] ?? '09:00',
+          'end_time': sMap['end_time'] ?? '10:00',
+          'room': sMap['room'] ?? '',
+          'class_type': sMap['class_type'] ?? 'Theory',
+          'faculty_name': sMap['faculty_name'] ?? '',
+          'session_id': sMap['session_id'],
+          'attendance_status': sMap['attendance_status'],
+          'is_attended': isAttended,
+          'is_absent': sMap['is_absent'] == true,
+          'is_not_held': sMap['is_not_held'] == true,
+          'is_unmarked': sMap['is_unmarked'] == true,
+        });
+
+        if (isToday) {
+          todaySessions.add(ClassSessionModel.fromJson({
+            'id': sMap['session_id'] ?? sMap['timetable_entry_id'] ?? '',
+            'timetable_entry_id': sMap['timetable_entry_id'],
+            'semester_id': '',
+            'subject_id': sMap['subject_id'] ?? '',
+            'subject_name': sMap['subject_name'] ?? 'Class',
+            'subject_code': sMap['subject_code'],
+            'subject_color': sMap['subject_color'] ?? '#C96E5B',
+            'subject_icon': sMap['subject_icon'] ?? 'book',
+            'date': sMap['date']?.toString() ?? '',
+            'start_time': sMap['start_time'],
+            'end_time': sMap['end_time'],
+            'faculty_name': sMap['faculty_name'],
+            'room': sMap['room'],
+            'session_status': 'SCHEDULED',
+            'is_extra': false,
+            'attendance_status': sMap['attendance_status'],
+          }));
+        }
+      }
+
+      dayStatusMap[dayIdx] = {
+        'isPast': isPast,
+        'isToday': isToday,
+        'isFuture': isFuture,
+        'isHoliday': isHoliday,
+        'holidayTitle': holidayTitle,
+        'total': slotsList.length,
+        'attended': attendedCount,
+      };
+    }
+
+    int minHour = 9;
+    int maxHour = 17;
+    if (ttEntries.isNotEmpty) {
+      for (final e in ttEntries) {
+        final st = e['start_time'] as String?;
+        final et = e['end_time'] as String?;
+        if (st != null && st.contains(':')) {
+          final h = int.tryParse(st.split(':')[0]);
+          if (h != null && h < minHour) minHour = h;
+        }
+        if (et != null && et.contains(':')) {
+          final h = int.tryParse(et.split(':')[0]);
+          if (h != null && h > maxHour) maxHour = h;
+        }
+      }
+    }
+
+    final finalWeekLabel = weekLabelFromApi ?? formatRelativeWeekLabel(currentOffset);
+    final finalRangeDisplay = dateRangeFromApi ?? fallbackRange.$3;
+
+    state = state.copyWith(
+      isLoading: isLoading,
+      isLoadingWeek: isLoadingWeek,
+      weekOffset: currentOffset,
+      weekLabel: finalWeekLabel,
+      dateRangeDisplay: finalRangeDisplay,
+      weekStartDateStr: startStr ?? fallbackRange.$1,
+      weekEndDateStr: endStr ?? fallbackRange.$2,
+      semesterLabel: semLabel,
+      sessions: todaySessions.isNotEmpty ? todaySessions : state.sessions,
+      timetableEntries: ttEntries,
+      classStartHour: minHour,
+      classEndHour: maxHour,
+      weeklyDayStatus: dayStatusMap,
+      errorMessage: null,
+    );
+  }
+
   Future<void> loadToday({int? offset}) async {
     if (!mounted) return;
     final currentOffset = offset ?? state.weekOffset;
     final seq = ++_currentRequestSeq;
     final fallbackRange = computeWeekDateRange(currentOffset);
+    final storage = LocalStorage();
+
+    // Hydrate from cached weekly status immediately (Stale-While-Revalidate)
+    if (state.timetableEntries.isEmpty || offset != null) {
+      final cachedWeekly = await storage.getCachedWeeklyStatus(currentOffset);
+      if (!mounted || seq != _currentRequestSeq) return;
+      if (cachedWeekly != null) {
+        try {
+          _applyWeeklyStatusData(
+            cachedWeekly,
+            currentOffset: currentOffset,
+            fallbackRange: fallbackRange,
+            isLoading: false,
+            isLoadingWeek: false,
+          );
+        } catch (_) {}
+      }
+    }
 
     // Initial load vs week update
     if (state.timetableEntries.isEmpty && state.sessions.isEmpty) {
       state = state.copyWith(isLoading: true, errorMessage: null);
-    } else {
+    } else if (offset != null && state.weekOffset != currentOffset) {
       state = state.copyWith(isLoadingWeek: true, errorMessage: null);
     }
 
     try {
       // 1. Fetch weekly routine with real attendance statuses from backend
-      List<Map<String, dynamic>> ttEntries = [];
-      String? startStr;
-      String? endStr;
-      String? weekLabelFromApi;
-      String? dateRangeFromApi;
-      String semLabel = state.semesterLabel;
-      final Map<int, Map<String, dynamic>> dayStatusMap = {};
+      bool weeklyStatusSucceeded = false;
 
       try {
         final weeklyResp = await _client.dio.get(
@@ -200,103 +343,56 @@ class TodayNotifier extends StateNotifier<TodayState> {
         if (!mounted || seq != _currentRequestSeq) return;
 
         if (weeklyResp.statusCode == 200 && weeklyResp.data is Map) {
-          final wData = weeklyResp.data as Map<String, dynamic>;
-          startStr = wData['start_date']?.toString();
-          endStr = wData['end_date']?.toString();
-          weekLabelFromApi = wData['week_label']?.toString();
-          dateRangeFromApi = wData['date_range_label']?.toString();
-
-          if (wData['semester_label'] != null) {
-            semLabel = wData['semester_label'].toString();
-          }
-
-          final daysList = wData['days'] as List? ?? [];
-          for (final dayItem in daysList) {
-            final dMap = dayItem as Map<String, dynamic>;
-            final dayIdx = dMap['day_of_week'] is int ? dMap['day_of_week'] as int : 0;
-            final isHoliday = dMap['is_holiday'] == true;
-            final isToday = dMap['is_today'] == true;
-            final isPast = dMap['is_past'] == true;
-            final isFuture = dMap['is_future'] == true;
-            final holidayTitle = dMap['holiday_title']?.toString();
-
-            final slotsList = dMap['slots'] as List? ?? [];
-            int attendedCount = 0;
-
-            for (final slotItem in slotsList) {
-              final sMap = slotItem as Map<String, dynamic>;
-              final isAttended = sMap['is_attended'] == true;
-              if (isAttended) attendedCount++;
-
-              ttEntries.add({
-                'id': sMap['timetable_entry_id'],
-                'timetable_entry_id': sMap['timetable_entry_id'],
-                'subject_id': sMap['subject_id'],
-                'subject_name': sMap['subject_name'] ?? 'Class',
-                'subject_code': sMap['subject_code'],
-                'subject_color': sMap['subject_color'] ?? '#C96E5B',
-                'subject_icon': sMap['subject_icon'] ?? 'book',
-                'day_of_week': dayIdx,
-                'date': sMap['date']?.toString(),
-                'start_time': sMap['start_time'] ?? '09:00',
-                'end_time': sMap['end_time'] ?? '10:00',
-                'room': sMap['room'] ?? '',
-                'class_type': sMap['class_type'] ?? 'Theory',
-                'faculty_name': sMap['faculty_name'] ?? '',
-                'session_id': sMap['session_id'],
-                'attendance_status': sMap['attendance_status'],
-                'is_attended': isAttended,
-                'is_absent': sMap['is_absent'] == true,
-                'is_not_held': sMap['is_not_held'] == true,
-                'is_unmarked': sMap['is_unmarked'] == true,
-              });
-            }
-
-            dayStatusMap[dayIdx] = {
-              'isPast': isPast,
-              'isToday': isToday,
-              'isFuture': isFuture,
-              'isHoliday': isHoliday,
-              'holidayTitle': holidayTitle,
-              'total': slotsList.length,
-              'attended': attendedCount,
-            };
-          }
-        }
-      } catch (_) {
-        // Fallback to basic timetable entries endpoint if weekly-status has network error
-        try {
-          final ttResp = await _client.dio.get(ApiEndpoints.timetable);
+          final wData = Map<String, dynamic>.from(weeklyResp.data as Map);
+          await storage.saveCachedWeeklyStatus(currentOffset, wData);
           if (!mounted || seq != _currentRequestSeq) return;
-          if (ttResp.statusCode == 200 && ttResp.data is List) {
-            ttEntries = (ttResp.data as List).map((e) {
-              final m = e as Map<String, dynamic>;
-              return {
-                'id': m['id'],
-                'timetable_entry_id': m['id'],
-                'subject_id': m['subject_id'],
-                'subject_name': m['subject_name'] ?? 'Class',
-                'subject_color': m['subject_color'] ?? '#C96E5B',
-                'day_of_week': m['day_of_week'] is int ? m['day_of_week'] : 0,
-                'start_time': m['start_time'] ?? '09:00',
-                'end_time': m['end_time'] ?? '10:00',
-                'room': m['room'] ?? '',
-                'class_type': m['class_type'] ?? 'Theory',
-                'faculty_name': m['faculty_name'] ?? '',
-                'is_attended': false,
-                'is_absent': false,
-                'is_not_held': false,
-                'is_unmarked': true,
-              };
-            }).toList();
-          }
-        } catch (_) {}
+          _applyWeeklyStatusData(
+            wData,
+            currentOffset: currentOffset,
+            fallbackRange: fallbackRange,
+            isLoading: false,
+            isLoadingWeek: false,
+          );
+          weeklyStatusSucceeded = true;
+        }
+      } catch (_) {}
+
+      if (weeklyStatusSucceeded) {
+        return;
       }
 
-      // If still empty, check local draft from academic setup
+      // Fallback if weekly-status had a network error
+      List<Map<String, dynamic>> ttEntries = [];
+      try {
+        final ttResp = await _client.dio.get(ApiEndpoints.timetable);
+        if (!mounted || seq != _currentRequestSeq) return;
+        if (ttResp.statusCode == 200 && ttResp.data is List) {
+          ttEntries = (ttResp.data as List).map((e) {
+            final m = e as Map<String, dynamic>;
+            return {
+              'id': m['id'],
+              'timetable_entry_id': m['id'],
+              'subject_id': m['subject_id'],
+              'subject_name': m['subject_name'] ?? 'Class',
+              'subject_color': m['subject_color'] ?? '#C96E5B',
+              'day_of_week': m['day_of_week'] is int ? m['day_of_week'] : 0,
+              'start_time': m['start_time'] ?? '09:00',
+              'end_time': m['end_time'] ?? '10:00',
+              'room': m['room'] ?? '',
+              'class_type': m['class_type'] ?? 'Theory',
+              'faculty_name': m['faculty_name'] ?? '',
+              'is_attended': false,
+              'is_absent': false,
+              'is_not_held': false,
+              'is_unmarked': true,
+            };
+          }).toList();
+        }
+      } catch (_) {}
+
       if (ttEntries.isEmpty) {
         try {
-          final draft = await LocalStorage().getAcademicSetupDraft('default');
+          final draft = await storage.getAcademicSetupDraft('default');
           if (!mounted || seq != _currentRequestSeq) return;
           if (draft != null && draft['timetable_entries'] is List && (draft['timetable_entries'] as List).isNotEmpty) {
             ttEntries = (draft['timetable_entries'] as List)
@@ -306,28 +402,6 @@ class TodayNotifier extends StateNotifier<TodayState> {
         } catch (_) {}
       }
 
-      // 2. Fetch today's classes
-      List<ClassSessionModel> list = [];
-      String dateStr = state.dateStr;
-      double? currentPct;
-
-      try {
-        final resp = await _client.dio.get(ApiEndpoints.todayAttendance);
-        if (!mounted || seq != _currentRequestSeq) return;
-        if (resp.statusCode == 200 && resp.data is Map) {
-          final data = resp.data as Map<String, dynamic>;
-          list = (data['sessions'] as List? ?? [])
-              .map((e) => ClassSessionModel.fromJson(e))
-              .toList();
-          currentPct = (data['current_overall_percentage'] as num?)?.toDouble();
-          dateStr = data['selected_date_str'] ?? dateStr;
-          if (data['semester_label'] != null) {
-            semLabel = data['semester_label'].toString();
-          }
-        }
-      } catch (_) {}
-
-      // Calculate schedule range
       int minHour = 9;
       int maxHour = 17;
       if (ttEntries.isNotEmpty) {
@@ -347,34 +421,24 @@ class TodayNotifier extends StateNotifier<TodayState> {
 
       if (!mounted || seq != _currentRequestSeq) return;
 
-      final finalWeekLabel = weekLabelFromApi ?? formatRelativeWeekLabel(currentOffset);
-      final finalRangeDisplay = dateRangeFromApi ?? fallbackRange.$3;
-
       state = state.copyWith(
         isLoading: false,
         isLoadingWeek: false,
         weekOffset: currentOffset,
-        weekLabel: finalWeekLabel,
-        dateRangeDisplay: finalRangeDisplay,
-        weekStartDateStr: startStr ?? fallbackRange.$1,
-        weekEndDateStr: endStr ?? fallbackRange.$2,
-        dateStr: dateStr,
-        semesterLabel: semLabel,
-        sessions: list,
-        currentOverallPercentage: currentPct,
-        projectedOverallPercentage: currentPct,
-        projectedDelta: 0.0,
-        timetableEntries: ttEntries,
+        weekLabel: formatRelativeWeekLabel(currentOffset),
+        dateRangeDisplay: fallbackRange.$3,
+        weekStartDateStr: fallbackRange.$1,
+        weekEndDateStr: fallbackRange.$2,
+        timetableEntries: ttEntries.isNotEmpty ? ttEntries : state.timetableEntries,
         classStartHour: minHour,
         classEndHour: maxHour,
-        weeklyDayStatus: dayStatusMap,
       );
     } catch (e) {
       if (!mounted || seq != _currentRequestSeq) return;
       state = state.copyWith(
         isLoading: false,
         isLoadingWeek: false,
-        errorMessage: 'Unable to load schedule from server.',
+        errorMessage: state.timetableEntries.isEmpty ? 'Unable to load schedule from server.' : null,
       );
     }
   }

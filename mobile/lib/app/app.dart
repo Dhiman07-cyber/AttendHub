@@ -159,7 +159,7 @@ class _AttendHubAppState extends ConsumerState<AttendHubApp> {
     final effectiveHasSeenOnboarding = _hasSeenOnboarding || authState.isAuthenticated;
 
     return MaterialApp(
-      title: 'AttendHub',
+      title: 'AttendiFy',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.lightTheme,
       scrollBehavior: const SmoothScrollBehavior(),
@@ -223,62 +223,12 @@ class _AttendHubAppState extends ConsumerState<AttendHubApp> {
             );
           }
 
-          // Authoritative Server-Side Setup Verification Check
+          // Authoritative Server-Side Setup Verification Check (runs in parallel without unmounting app shell)
           final setupState = ref.watch(setupProvider);
           if (setupState.status == null && !setupState.isLoading && setupState.errorMessage == null) {
             WidgetsBinding.instance.addPostFrameCallback((_) {
               ref.read(setupProvider.notifier).checkStatus();
             });
-          }
-
-          if (setupState.isLoading && setupState.status == null) {
-            return const Scaffold(
-              backgroundColor: AppColors.background,
-              body: Center(
-                child: CircularProgressIndicator(
-                  valueColor: AlwaysStoppedAnimation<Color>(AppColors.terracotta),
-                ),
-              ),
-            );
-          }
-
-          if (setupState.errorMessage != null && setupState.status == null) {
-            return Scaffold(
-              backgroundColor: AppColors.background,
-              body: Center(
-                child: Padding(
-                  padding: const EdgeInsets.all(24),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const Icon(Icons.cloud_off_rounded, size: 48, color: AppColors.terracotta),
-                      const SizedBox(height: 16),
-                      const Text(
-                        'Unable to Verify Academic Context',
-                        style: TextStyle(fontWeight: FontWeight.w700, fontSize: 16, color: AppColors.ink),
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        setupState.errorMessage!,
-                        textAlign: TextAlign.center,
-                        style: const TextStyle(fontSize: 12, color: AppColors.inkMuted),
-                      ),
-                      const SizedBox(height: 20),
-                      ElevatedButton.icon(
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: AppColors.terracotta,
-                          foregroundColor: Colors.white,
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                        ),
-                        icon: const Icon(Icons.refresh_rounded, size: 18),
-                        label: const Text('Retry Connection'),
-                        onPressed: () => ref.read(setupProvider.notifier).checkStatus(),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            );
           }
 
           // Incomplete Setup -> Guided 7-Step Academic Setup Wizard
@@ -287,6 +237,7 @@ class _AttendHubAppState extends ConsumerState<AttendHubApp> {
               onComplete: () {
                 ref.read(setupProvider.notifier).checkStatus();
                 ref.invalidate(dashboardProvider);
+                ref.invalidate(selectedDateAttendanceProvider);
                 ref.invalidate(todayProvider);
                 ref.invalidate(subjectsProvider);
                 ref.invalidate(calendarProvider);
@@ -472,7 +423,7 @@ class _AttendHubAppState extends ConsumerState<AttendHubApp> {
   }
 
   String _getBarTitle(SemestersState semState) {
-    if (_secondaryRoute == 'analytics') return 'AttendHub';
+    if (_secondaryRoute == 'analytics') return 'AttendiFy';
     if (_secondaryRoute == 'holidays') return 'Holidays';
     switch (_activeTabIndex) {
       case 0:
@@ -481,7 +432,7 @@ class _AttendHubAppState extends ConsumerState<AttendHubApp> {
       case 3:
       case 4:
       default:
-        return 'AttendHub';
+        return 'AttendiFy';
     }
   }
 
@@ -724,7 +675,7 @@ class _AttendHubAppState extends ConsumerState<AttendHubApp> {
             const SizedBox(height: 8),
             _buildFaqItem(
               'How are Safe Absences calculated?',
-              'AttendHub uses the pure formula: max(0, floor((Attended - 0.75 * Conducted) / 0.75)). If current attendance is below 75%, safe absences are strictly 0.',
+              'AttendiFy uses the pure formula: max(0, floor((Attended - 0.75 * Conducted) / 0.75)). If current attendance is below 75%, safe absences are strictly 0.',
             ),
             _buildFaqItem(
               'What if a class is cancelled or not held?',
@@ -754,7 +705,7 @@ class _AttendHubAppState extends ConsumerState<AttendHubApp> {
                         Text('Need more assistance?',
                             style: TextStyle(
                                 fontSize: 12, fontWeight: FontWeight.w600)),
-                        Text('Contact us at support@attendhub.app',
+                        Text('Contact us at support@attendify.app',
                             style: TextStyle(
                                 fontSize: 11, color: AppColors.inkMuted)),
                       ],
@@ -811,7 +762,7 @@ class _AttendHubAppState extends ConsumerState<AttendHubApp> {
                   color: AppColors.terracotta, size: 20),
             ),
             const SizedBox(width: 10),
-            const Text('About AttendHub',
+            const Text('About AttendiFy',
                 style: TextStyle(fontWeight: FontWeight.w700, fontSize: 18)),
           ],
         ),
@@ -819,7 +770,7 @@ class _AttendHubAppState extends ConsumerState<AttendHubApp> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('AttendHub v1.0.0',
+            Text('AttendiFy v1.0.0',
                 style: TextStyle(fontWeight: FontWeight.w700, fontSize: 14)),
             SizedBox(height: 4),
             Text(

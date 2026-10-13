@@ -9,8 +9,19 @@ class Settings(BaseSettings):
     VERSION: str = "1.0.0"
     API_V1_STR: str = "/api/v1"
     
-    # Database (Supabase PostgreSQL via .env)
+    # Database (Supabase PostgreSQL via .env / Render env vars)
     DATABASE_URL: str = ""
+
+    @field_validator("DATABASE_URL", mode="before")
+    def normalize_database_url(cls, v: str) -> str:
+        if not isinstance(v, str):
+            return ""
+        v = v.strip()
+        if v.startswith("postgres://"):
+            return "postgresql+asyncpg://" + v[len("postgres://"):]
+        if v.startswith("postgresql://"):
+            return "postgresql+asyncpg://" + v[len("postgresql://"):]
+        return v
     
     # Security
     JWT_SECRET: str = "attendhub_default_super_secret_key_change_in_production"

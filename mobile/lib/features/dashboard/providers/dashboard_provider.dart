@@ -12,13 +12,23 @@ import '../../calendar/providers/calendar_provider.dart';
 import '../../subjects/providers/subjects_provider.dart';
 
 final dashboardProvider = FutureProvider<DashboardOverviewModel>((ref) async {
-  ref.watch(semestersProvider);
   final client = ApiClient();
-  final response = await client.dio.get(ApiEndpoints.dashboard);
-  if (response.statusCode == 200) {
-    return DashboardOverviewModel.fromJson(response.data);
+  final storage = LocalStorage();
+  try {
+    final response = await client.dio.get(ApiEndpoints.dashboard);
+    if (response.statusCode == 200 && response.data is Map) {
+      final dataMap = Map<String, dynamic>.from(response.data as Map);
+      await storage.saveCachedDashboard(dataMap);
+      return DashboardOverviewModel.fromJson(dataMap);
+    }
+    throw Exception('Failed to load dashboard: ${response.statusCode}');
+  } catch (e) {
+    final cached = await storage.getCachedDashboard();
+    if (cached != null) {
+      return DashboardOverviewModel.fromJson(cached);
+    }
+    rethrow;
   }
-  throw Exception('Failed to load dashboard: ${response.statusCode}');
 });
 
 class SelectedDateAttendanceState {
@@ -167,15 +177,57 @@ class SelectedDateAttendanceNotifier extends StateNotifier<SelectedDateAttendanc
 
   Future<void> loadDaySessions() async {
     if (!mounted || _ref == null) return;
-    state = state.copyWith(isLoading: true, errorMessage: null);
-    try {
-      final dateStr = state.dateIso;
-      final semState = _ref.read(semestersProvider);
-      final activeSemId = semState.activeSemester?.id ?? '';
-      final cachedUser = await _storage.getCachedUser();
-      if (!mounted) return;
-      final userId = cachedUser?.id ?? 'default';
+    final dateStr = state.dateIso;
+    final semState = _ref.read(semestersProvider);
+    final activeSemId = semState.activeSemester?.id ?? '';
+    final cachedUser = await _storage.getCachedUser();
+    if (!mounted) return;
+    final userId = cachedUser?.id ?? 'default';
 
+    final savedDraft = await _storage.getAttendanceDraft(
+      userId: userId,
+      semesterId: activeSemId,
+      date: dateStr,
+    );
+    if (!mounted) return;
+
+    // Restore cached day attendance immediately if available (Stale-While-Revalidate)
+    final cachedDay = await _storage.getCachedDayAttendance(dateStr);
+    if (!mounted) return;
+    if (cachedDay != null) {
+      try {
+        final cachedHoliday = cachedDay['is_holiday'] == true;
+        final cachedHolidayName = cachedDay['holiday_name'] as String?;
+        final rawSessions = cachedDay['sessions'] as List? ?? [];
+        final cachedSessions = rawSessions
+            .map((e) => ClassSessionModel.fromJson(Map<String, dynamic>.from(e as Map)))
+            .toList();
+        final Map<String, String> cachedMarks = {};
+        for (final s in cachedSessions) {
+          final k = _getSlotKey(s);
+          if (s.attendanceStatus != null) {
+            cachedMarks[k] = s.attendanceStatus!;
+          }
+        }
+        if (savedDraft != null) {
+          cachedMarks.addAll(savedDraft);
+        }
+        state = state.copyWith(
+          isLoading: false,
+          sessions: cachedSessions,
+          isHoliday: cachedHoliday,
+          holidayName: cachedHolidayName,
+          draftMarks: cachedMarks,
+          errorMessage: null,
+        );
+      } catch (_) {
+        state = state.copyWith(isLoading: true, errorMessage: null);
+      }
+    } else {
+      state = state.copyWith(isLoading: true, errorMessage: null);
+    }
+
+    try {
       // 1. Fetch server state for this calendar date
       final resp = await _client.dio.get(
         ApiEndpoints.dayAttendance,
@@ -187,28 +239,38 @@ class SelectedDateAttendanceNotifier extends StateNotifier<SelectedDateAttendanc
       bool isHoliday = false;
       String? holidayName;
 
-      if (resp.statusCode == 200 && resp.data != null) {
-        final data = resp.data as Map<String, dynamic>;
+      if (resp.statusCode == 200 && resp.data is Map) {
+        final data = Map<String, dynamic>.from(resp.data as Map);
+        await _storage.saveCachedDayAttendance(dateStr, data);
+        if (!mounted) return;
         isHoliday = data['is_holiday'] == true;
         holidayName = data['holiday_name'] as String?;
         final rawSessions = data['sessions'] as List? ?? [];
         sessions = rawSessions
-            .map((e) => ClassSessionModel.fromJson(e as Map<String, dynamic>))
+            .map((e) => ClassSessionModel.fromJson(Map<String, dynamic>.from(e as Map)))
             .toList();
       }
 
       // Check if timetable is configured
       bool hasTimetable = true;
       if (sessions.isEmpty && !isHoliday) {
-        // If today has 0 sessions, verify if semester has any timetable entries at all
         try {
-          final ttResp = await _client.dio.get(ApiEndpoints.timetableWeeklyStatus);
+          Map<String, dynamic>? weeklyData = await _storage.getCachedWeeklyStatus(0);
           if (!mounted) return;
-          if (ttResp.statusCode == 200 && ttResp.data != null) {
-            final days = ttResp.data['days'] as List? ?? [];
+          if (weeklyData == null) {
+            final ttResp = await _client.dio.get(ApiEndpoints.timetableWeeklyStatus);
+            if (!mounted) return;
+            if (ttResp.statusCode == 200 && ttResp.data is Map) {
+              weeklyData = Map<String, dynamic>.from(ttResp.data as Map);
+              await _storage.saveCachedWeeklyStatus(0, weeklyData);
+              if (!mounted) return;
+            }
+          }
+          if (weeklyData != null) {
+            final days = weeklyData['days'] as List? ?? [];
             int totalWeeklySlots = 0;
             for (final d in days) {
-              final slots = d['slots'] as List? ?? [];
+              final slots = (d as Map)['slots'] as List? ?? [];
               totalWeeklySlots += slots.length;
             }
             hasTimetable = totalWeeklySlots > 0;
@@ -217,7 +279,7 @@ class SelectedDateAttendanceNotifier extends StateNotifier<SelectedDateAttendanc
       }
 
       // 2. Load persistent local draft
-      final savedDraft = await _storage.getAttendanceDraft(
+      final latestDraft = await _storage.getAttendanceDraft(
         userId: userId,
         semesterId: activeSemId,
         date: dateStr,
@@ -234,8 +296,8 @@ class SelectedDateAttendanceNotifier extends StateNotifier<SelectedDateAttendanc
       }
 
       // Overlay user's pending local draft
-      if (savedDraft != null) {
-        marks.addAll(savedDraft);
+      if (latestDraft != null) {
+        marks.addAll(latestDraft);
       }
 
       if (!mounted) return;
@@ -251,7 +313,7 @@ class SelectedDateAttendanceNotifier extends StateNotifier<SelectedDateAttendanc
       if (!mounted) return;
       state = state.copyWith(
         isLoading: false,
-        errorMessage: e.toString(),
+        errorMessage: state.sessions.isEmpty ? e.toString() : null,
       );
     }
   }

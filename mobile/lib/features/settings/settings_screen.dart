@@ -379,7 +379,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             // 5. About & App Information
             _buildSectionHeader(
               icon: Icons.info_outline_rounded,
-              title: 'About AttendHub',
+              title: 'About AttendiFy',
               color: AppColors.inkMuted,
             ),
             const SizedBox(height: 10),
@@ -422,7 +422,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                   ),
                   SizedBox(height: 12),
                   Text(
-                    'AttendHub is an independent, student-first attendance utility. It is designed to give you clear visibility, reliable forecasting, and actionable peace of mind.',
+                    'AttendiFy is an independent, student-first attendance utility. It is designed to give you clear visibility, reliable forecasting, and actionable peace of mind.',
                     style: TextStyle(
                         fontSize: 11, color: AppColors.inkMuted, height: 1.4),
                   ),

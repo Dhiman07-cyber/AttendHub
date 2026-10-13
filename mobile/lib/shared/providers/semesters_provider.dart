@@ -4,6 +4,7 @@ import '../../core/network/api_client.dart';
 import '../../core/network/api_endpoints.dart';
 import '../../core/storage/local_storage.dart';
 import '../models/semester_model.dart';
+import '../../features/dashboard/providers/dashboard_provider.dart';
 import '../../features/today/providers/today_provider.dart';
 import '../../features/subjects/providers/subjects_provider.dart';
 import '../../features/calendar/providers/calendar_provider.dart';
@@ -101,10 +102,13 @@ class SemestersNotifier extends StateNotifier<SemestersState> {
       );
       if (!mounted) return false;
       if (resp.statusCode == 200) {
+        await _storage.clearSemesterCache();
         // Refresh local semester list
         await loadSemesters();
 
         // Invalidate all academic and attendance context
+        _ref.invalidate(dashboardProvider);
+        _ref.invalidate(selectedDateAttendanceProvider);
         _ref.invalidate(todayProvider);
         _ref.invalidate(subjectsProvider);
         _ref.invalidate(calendarProvider);

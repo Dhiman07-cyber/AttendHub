@@ -1,14 +1,15 @@
 # AttendHub — Local Development Guide
 
-This guide describes how to run and develop the AttendHub backend and mobile client locally.
+This guide describes how to configure, run, and develop the **AttendHub** FastAPI backend and Flutter mobile/web client locally.
 
 ---
 
 ## 1. Prerequisites
 
-- **Python**: 3.11+ (Python 3.14 tested and supported)
-- **Flutter**: 3.19+ / Dart 3.3+
-- **Docker**: (Optional) For containerized PostgreSQL deployment
+- **Python**: `3.11+` (`3.11.9` used on Render; `3.13` / `3.14` also supported locally)
+- **Flutter SDK**: `3.19+` / **Dart**: `3.3+`
+- **PostgreSQL**: Cloud-hosted **Supabase PostgreSQL 17** (or containerized via Docker Compose)
+- **Docker Desktop**: *(Optional)* For running the containerized backend stack
 
 ---
 
@@ -20,10 +21,10 @@ cd backend
 ```
 
 ### Step 2: Create and Activate a Virtual Environment
-**On Windows:**
+**On Windows (PowerShell):**
 ```powershell
 python -m venv .venv
-.venv\Scripts\Activate.ps1
+.\.venv\Scripts\Activate.ps1
 ```
 
 **On macOS / Linux:**
@@ -39,109 +40,100 @@ pip install -r requirements.txt
 ```
 
 ### Step 4: Environment Configuration
-Copy the environment template:
+Copy the template inside `backend/`:
 ```bash
-cp ../.env.example .env
+cp .env.example .env
 ```
 
-Configure environment variables in `.env`:
+Edit `backend/.env` with your Supabase PostgreSQL and JWT settings:
 ```ini
-DATABASE_URL=postgresql+asyncpg://postgres.<project-ref>:<db-password>@aws-0-ap-south-1.pooler.supabase.com:6543/postgres
-SECRET_KEY=your-secure-backend-jwt-secret-here
-ACCESS_TOKEN_EXPIRE_MINUTES=60
-REFRESH_TOKEN_EXPIRE_DAYS=30
+# Supabase PostgreSQL Connection (Cloud Hosted)
+DATABASE_URL=postgresql+asyncpg://postgres:[YOUR-PASSWORD]@db.[YOUR-PROJECT-REF].supabase.co:5432/postgres
+
+# Supabase Credentials (used for /health keep-alive ping)
+SUPABASE_URL=https://[YOUR-PROJECT-REF].supabase.co
+SUPABASE_PUBLISHABLE_KEY=sb_publishable_...
+
+# Authentication & Security
+JWT_SECRET=super_secret_jwt_key_change_in_production_attendhub_2026_xyz
+REFRESH_TOKEN_SECRET=super_secret_refresh_jwt_key_change_in_production_attendhub_2026_abc
+ACCESS_TOKEN_EXPIRE_MINUTES=10080
+REFRESH_TOKEN_EXPIRE_DAYS=60
+
+# CORS
+CORS_ORIGINS=["*"]
+
+# Ephemeral Scratch Upload Path
+LOCAL_STORAGE_DIR=./storage_uploads
 ```
 
-> **Database Rule**: AttendHub connects strictly to **Supabase-hosted PostgreSQL** (`postgresql+asyncpg`). SQLite has been decommissioned to maintain exact production parity, transactional atomicity, and RLS integrity. Do not reintroduce local SQLite fallbacks.
+> **Database Note**: AttendHub connects via `postgresql+asyncpg` (`config.py` automatically normalizes `postgres://` or `postgresql://` prefixes). Ensure [`supabase/schema.sql`](../supabase/schema.sql) has been applied to your Supabase project.
 
-### Step 5: Start the Development Server
+### Step 5: Start the FastAPI Development Server
 ```bash
-uvicorn app.main:app --reload --port 8000
+uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 ```
 
-The backend is now accessible:
-- API Root: `http://localhost:8000/`
-- Interactive Swagger UI: `http://localhost:8000/docs`
-- ReDoc: `http://localhost:8000/redoc`
+Verify the server is running:
+- **Root Info**: `http://localhost:8000/`
+- **Health Check**: `http://localhost:8000/health`
+- **Interactive Swagger UI**: `http://localhost:8000/docs`
+- **ReDoc**: `http://localhost:8000/redoc`
 
 ---
 
-## 3. Mobile Setup (Flutter)
+## 3. Mobile & Web Client Setup (Flutter)
 
 ### Step 1: Navigate to the Mobile Directory
 ```bash
 cd mobile
 ```
 
-### Step 2: Install Flutter Dependencies
+### Step 2: Fetch Dart/Flutter Packages
 ```bash
 flutter pub get
 ```
 
-### Step 3: Run the Application
-**Run on connected Android/iOS device or emulator:**
-```bash
-flutter run
-```
-
-**Run on Chrome (Web):**
+### Step 3: Run the Client
+**Run on Chrome (Web — defaults to `http://127.0.0.1:8000/api/v1`):**
 ```bash
 flutter run -d chrome
 ```
 
-**Run on Windows Desktop:**
+**Run on Android / iOS / Windows Desktop against a Local Backend:**
 ```bash
-flutter run -d windows
+flutter run --dart-define=API_BASE_URL=http://10.0.2.2:8000/api/v1
 ```
+*(Use `http://10.0.2.2:8000/api/v1` for Android Emulator, `http://127.0.0.1:8000/api/v1` for Windows/iOS Simulator, or your LAN IP `http://192.168.x.x:8000/api/v1` for a physical phone).*
+
+**Runtime Server URL Switcher:**
+You can also switch the backend URL at runtime without rebuilding:
+1. Tap the **Server URL (gear icon)** at the top-right of the **Login / Sign Up** screen (or inside **Settings**).
+2. Enter your backend URL (e.g., `https://attendify-li14.onrender.com` or `http://192.168.1.5:8000`) and tap **Save**.
 
 ---
 
-## 4. Running Automated Tests
+## 4. Running Automated Tests & Static Analysis
 
-### Backend Test Suite
-AttendHub includes comprehensive domain tests for all attendance formulas and API integration tests:
+### Backend Test Suite (`pytest`)
 ```bash
 cd backend
-pytest
-```
-
-To run with verbose output:
-```bash
 pytest -v
 ```
 
-### Flutter Test Suite
+### Flutter Test Suite & Static Analysis
 ```bash
 cd mobile
+flutter analyze
 flutter test
 ```
 
 ---
 
-## 5. Architectural & Code Conventions
+## 5. Architectural & Engineering Conventions
 
-1. **Product Name Integrity**: Never use or mention the legacy name anywhere in code, comments, or documentation. The product is strictly **AttendHub**.
-2. **Deterministic Arithmetic Only**: Never use LLMs or external AI for attendance calculations. Keep all arithmetic in `app/calculations/attendance_engine.py`.
-3. **No Percentage Averaging**: Never average percentages to calculate overall semester attendance. Always aggregate raw attended and conducted totals:
-   ```python
-   total_attended / total_conducted * 100
-   ```
-4. **Feature-First Architecture**: Group Flutter code by feature (`features/dashboard`, `features/today`, etc.) and avoid placing business logic inside widgets.
-
----
-
-## 6. Engineering Skill System & Agent Preflight
-
-AttendHub enforces a strict pre-edit preflight protocol for AI coding assistants and contributors. The project maintains a task-relevant skill suite under `.agents/skills/` and persistent rules in `AGENTS.md` and `.agents/rules/engineering-standards.md`.
-
-For a full inventory of installed skills, their trigger use cases, and authority levels, see:
-- [`docs/agent-skills.md`](agent-skills.md)
-
-### Pre-Edit Preflight Workflow:
-1. **Understand & Identify Invariants**: Review `context.md`, `design.md`, 75% defaults, semester and user isolation.
-2. **Inspect Code**: Inspect active implementation before proposing changes.
-3. **Load Specialist Skills**: Activate Flutter, Dart, Superpowers process, OWASP security, or FastAPI skills.
-4. **Authoritative Guidance**: Consult current official framework docs.
-5. **Plan & Implement**: Form small safe plans; preserve database constraints, transaction boundaries, and mathematical determinism.
-6. **Test & Verify**: Run `pytest -v` and `flutter test`; independently inspect the diff before completion.
-
+1. **Pure Deterministic Mathematics**: Keep all attendance and forecasting formulas pure and side-effect-free inside [`backend/app/calculations/attendance_engine.py`](../backend/app/calculations/attendance_engine.py) and [`insight_engine.py`](../backend/app/calculations/insight_engine.py).
+2. **75.0% Default Thresholds**: `minimum_attendance` and `personal_target` must default to `75.0%` across database schemas, Pydantic models, and Flutter constants.
+3. **No Percentage Averaging**: Always compute whole-semester attendance from raw sums ($\sum A / \sum C \times 100$).
+4. **Clean Layer Separation**: Maintain `Presentation -> Application/State -> Domain/Calculation -> Data/ORM` without embedding database or business logic inside UI widgets.
+5. **Pre-Edit Preflight**: Review [`AGENTS.md`](../AGENTS.md) and [`docs/agent-skills.md`](agent-skills.md) before modifying code.

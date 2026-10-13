@@ -62,7 +62,7 @@ class AppTopBar extends StatelessWidget implements PreferredSizeWidget {
                   ),
                   const SizedBox(width: 8),
                   const Text(
-                    'AttendHub',
+                    'AttendiFy',
                     style: TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.w700,

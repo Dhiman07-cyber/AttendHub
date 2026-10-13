@@ -1157,7 +1157,10 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Row(
+                  Wrap(
+                    spacing: 6,
+                    runSpacing: 4,
+                    crossAxisAlignment: WrapCrossAlignment.center,
                     children: [
                       Container(
                         padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
@@ -1167,7 +1170,6 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
                         ),
                         child: const Text('LIVE CLASS NOW', style: TextStyle(fontSize: 9, fontWeight: FontWeight.w900, color: Colors.white)),
                       ),
-                      const SizedBox(width: 6),
                       Text(
                         '${liveClass['start_time']} – ${liveClass['end_time']}',
                         style: const TextStyle(fontSize: 10, color: AppColors.inkMuted, fontWeight: FontWeight.w600),
@@ -1177,10 +1179,14 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
                   const SizedBox(height: 3),
                   Text(
                     liveClass['subject_name'] ?? 'Class',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                     style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 14, color: AppColors.ink),
                   ),
                   Text(
                     '${liveClass['room'] ?? 'Room'} • ${liveClass['faculty_name'] ?? 'Faculty'}',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                     style: const TextStyle(fontSize: 11, color: AppColors.inkMuted),
                   ),
                 ],
@@ -1210,7 +1216,10 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Row(
+                  Wrap(
+                    spacing: 6,
+                    runSpacing: 4,
+                    crossAxisAlignment: WrapCrossAlignment.center,
                     children: [
                       Container(
                         padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
@@ -1220,7 +1229,6 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
                         ),
                         child: const Text('NEXT CLASS TODAY', style: TextStyle(fontSize: 9, fontWeight: FontWeight.w900, color: Colors.white)),
                       ),
-                      const SizedBox(width: 6),
                       Text(
                         'Starts at ${nextClass['start_time']}',
                         style: const TextStyle(fontSize: 10, color: AppColors.inkMuted, fontWeight: FontWeight.w600),
@@ -1230,10 +1238,14 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
                   const SizedBox(height: 3),
                   Text(
                     nextClass['subject_name'] ?? 'Class',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                     style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 14, color: AppColors.ink),
                   ),
                   Text(
                     '${nextClass['room'] ?? 'Room'} • ${nextClass['faculty_name'] ?? 'Faculty'}',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                     style: const TextStyle(fontSize: 11, color: AppColors.inkMuted),
                   ),
                 ],

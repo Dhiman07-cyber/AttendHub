@@ -1,245 +1,186 @@
 # AttendHub — Database Architecture & Schema Reference
 
-AttendHub uses a relational persistence model engineered for transactional consistency, referential integrity, and complete semester isolation.
+AttendHub uses a relational PostgreSQL 17 persistence model engineered for transactional consistency, referential integrity, Row-Level Security (RLS), and complete semester isolation.
 
 ---
 
-## 1. Entity Relationship Overview
+## 1. Entity Relationship Diagram
 
-```text
-┌──────────────┐
-│    users     │
-└──────┬───────┘
-       │ 1:1
-       ├─────────────────────────┐
-       ▼                         ▼
-┌──────────────┐          ┌──────────────┐
-│  profiles    │          │  semesters   │
-└──────────────┘          └──────┬───────┘
-                                 │ 1:N
-              ┌──────────────────┼──────────────────┐
-              ▼                  ▼                  ▼
-       ┌──────────────┐   ┌──────────────┐   ┌──────────────┐
-       │   subjects   │   │  timetable   │   │   holidays   │
-       └──────┬───────┘   └──────────────┘   └──────────────┘
-              │ 1:N
-              ▼
-       ┌──────────────┐
-       │class_sessions│
-       └──────┬───────┘
-              │ 1:1
-              ▼
-       ┌──────────────┐
-       │  attendance  │
-       └──────┬───────┘
-              │ 1:N
-              ▼
-       ┌──────────────┐
-       │  audit_logs  │
-       └──────────────┘
+```mermaid
+erDiagram
+    users ||--|| academic_profiles : "1:1 global profile"
+    users ||--o{ semesters : "1:N academic terms"
+    users ||--o{ holidays : "1:N calendar holidays"
+    users ||--o{ attendance_records : "1:N marks"
+    semesters ||--o{ subjects : "1:N enrolled courses"
+    semesters ||--o{ timetable_entries : "1:N weekly routine"
+    semesters ||--o{ class_sessions : "1:N dated sessions"
+    semesters ||--o{ holidays : "1:N term holidays"
+    subjects ||--o{ timetable_entries : "1:N scheduled slots"
+    subjects ||--o{ class_sessions : "1:N actual classes"
+    class_sessions ||--o| attendance_records : "1:1 attendance status"
+    attendance_records ||--o{ attendance_audit_logs : "1:N immutable audit trail"
 ```
 
 ---
 
 ## 2. Table Specifications
 
+The authoritative SQL DDL is maintained in [`supabase/schema.sql`](../supabase/schema.sql) and mirrored in SQLAlchemy 2.0 ORM models under [`backend/app/models/`](../backend/app/models/).
+
 ### 2.1 `users`
 Represents student accounts with Argon2id password hashes.
 | Column | Type | Constraints | Description |
 |---|---|---|---|
-| `id` | VARCHAR(36) | PRIMARY KEY | UUID string identifier |
-| `email` | VARCHAR(255) | UNIQUE, NOT NULL, INDEX | Verified email address |
-| `hashed_password` | VARCHAR(255) | NOT NULL | Argon2id secure hash |
-| `full_name` | VARCHAR(100) | NOT NULL | Student's full name |
-| `is_active` | BOOLEAN | DEFAULT TRUE | Account state |
-| `created_at` | TIMESTAMP | DEFAULT CURRENT_TIMESTAMP | Account creation |
-| `updated_at` | TIMESTAMP | ON UPDATE CURRENT_TIMESTAMP | Last profile update |
+| `id` | `VARCHAR(36)` | `PRIMARY KEY` | UUID string identifier |
+| `email` | `VARCHAR(255)` | `UNIQUE, NOT NULL, INDEX` | Verified student email address |
+| `hashed_password` | `VARCHAR(255)` | `NOT NULL` | Argon2id password hash |
+| `full_name` | `VARCHAR(100)` | `NOT NULL` | Student's full name |
+| `avatar_initial` | `VARCHAR(5)` | `DEFAULT 'A', NOT NULL` | Initial displayed in top bar avatar |
+| `is_active` | `BOOLEAN` | `DEFAULT TRUE, NOT NULL` | Account active state |
+| `created_at` | `TIMESTAMPTZ` | `DEFAULT now(), NOT NULL` | Account creation timestamp (UTC) |
+| `updated_at` | `TIMESTAMPTZ` | `DEFAULT now(), NOT NULL` | Last profile update timestamp (UTC) |
 
 ### 2.2 `academic_profiles`
-Maintains institutional and academic configuration.
+Maintains global institutional identity and attendance threshold settings (`75.0%` defaults).
 | Column | Type | Constraints | Description |
 |---|---|---|---|
-| `id` | VARCHAR(36) | PRIMARY KEY | Profile UUID |
-| `user_id` | VARCHAR(36) | FK(`users.id`), UNIQUE, INDEX | Owner reference |
-| `university_name` | VARCHAR(150) | NULLABLE | University or College |
-| `course_name` | VARCHAR(100) | NULLABLE | Degree / Program |
-| `academic_duration_years` | INTEGER | DEFAULT 4 | Program length in years |
-| `academic_session_start` | DATE | NULLABLE | Academic session start date |
-| `academic_session_end` | DATE | NULLABLE | Academic session end date |
-| `current_semester` | INTEGER | DEFAULT 1 | Active semester integer |
-| `minimum_attendance` | FLOAT | DEFAULT 75.0 | Mandatory threshold (0-100) |
-| `personal_target` | FLOAT | DEFAULT 75.0 | Student personal goal (0-100) |
+| `id` | `VARCHAR(36)` | `PRIMARY KEY` | Profile UUID |
+| `user_id` | `VARCHAR(36)` | `FK(users.id) ON DELETE CASCADE, UNIQUE` | Owner student reference |
+| `university_name` | `VARCHAR(200)` | `NOT NULL` | University or College name |
+| `course_name` | `VARCHAR(200)` | `NOT NULL` | Degree / Program title |
+| `student_id_number` | `VARCHAR(100)` | `NULLABLE` | Enrollment / Roll number |
+| `academic_duration_years` | `INTEGER` | `DEFAULT 4, NOT NULL` | Program duration in years |
+| `academic_session_start` | `INTEGER` | `DEFAULT 2024, NOT NULL` | Cohort start year |
+| `academic_session_end` | `INTEGER` | `DEFAULT 2028, NOT NULL` | Expected graduation year |
+| `current_semester_id` | `VARCHAR(36)` | `NULLABLE` | Active semester UUID pointer |
+| `minimum_attendance` | `NUMERIC(5,2)` | `DEFAULT 75.0, CHECK (0..100)` | Mandatory attendance requirement |
+| `personal_target` | `NUMERIC(5,2)` | `DEFAULT 75.0, CHECK (0..100)` | Student's personal target goal |
+| `low_attendance_alert` | `NUMERIC(5,2)` | `DEFAULT 70.0, CHECK (0..100)` | Early warning alert threshold |
 
 ### 2.3 `semesters`
-Defines discrete academic terms. All subjects, timetables, and sessions belong to a semester.
+Defines discrete academic terms. All subjects, timetables, and class sessions belong to a semester.
 | Column | Type | Constraints | Description |
 |---|---|---|---|
-| `id` | VARCHAR(36) | PRIMARY KEY | Semester UUID |
-| `user_id` | VARCHAR(36) | FK(`users.id`), NOT NULL, INDEX | Owner reference |
-| `semester_number` | INTEGER | NOT NULL | Semester digit (1-12) |
-| `label` | VARCHAR(100) | NOT NULL | Display name (e.g., "Semester 5") |
-| `start_date` | DATE | NOT NULL | Semester start date |
-| `end_date` | DATE | NOT NULL | Semester end date |
-| `is_active` | BOOLEAN | DEFAULT FALSE, INDEX | Active semester flag |
+| `id` | `VARCHAR(36)` | `PRIMARY KEY` | Semester UUID |
+| `user_id` | `VARCHAR(36)` | `FK(users.id) ON DELETE CASCADE, INDEX` | Owner student reference |
+| `semester_number` | `INTEGER` | `NOT NULL, CHECK (1..12)` | Semester ordinal (`1` to `12`) |
+| `label` | `VARCHAR(100)` | `NOT NULL` | Display label (e.g., `"5th Semester"`) |
+| `start_date` | `DATE` | `NOT NULL` | Term start date |
+| `end_date` | `DATE` | `NOT NULL, CHECK (end_date >= start_date)` | Term end date |
+| `status` | `VARCHAR(20)` | `DEFAULT 'ACTIVE'` | `ACTIVE`, `COMPLETED`, or `UPCOMING` |
+| `is_active` | `BOOLEAN` | `DEFAULT TRUE, INDEX` | Currently active semester flag |
+| `total_weeks` | `INTEGER` | `DEFAULT 16, CHECK (>= 1)` | Total instructional weeks in term |
 
 ### 2.4 `subjects`
 Course units enrolled within a specific semester.
 | Column | Type | Constraints | Description |
 |---|---|---|---|
-| `id` | VARCHAR(36) | PRIMARY KEY | Subject UUID |
-| `semester_id` | VARCHAR(36) | FK(`semesters.id`), NOT NULL, INDEX | Semester scoping |
-| `name` | VARCHAR(150) | NOT NULL | Subject title |
-| `code` | VARCHAR(50) | NULLABLE | Course code (e.g. CS-501) |
-| `faculty_name` | VARCHAR(100) | NULLABLE | Instructor name |
-| `is_active` | BOOLEAN | DEFAULT TRUE, INDEX | Active / Archived flag |
-| `color_tag` | VARCHAR(20) | NULLABLE | Hex color code for UI |
+| `id` | `VARCHAR(36)` | `PRIMARY KEY` | Subject UUID |
+| `semester_id` | `VARCHAR(36)` | `FK(semesters.id) ON DELETE CASCADE, INDEX` | Parent semester reference |
+| `name` | `VARCHAR(150)` | `NOT NULL` | Subject title |
+| `code` | `VARCHAR(50)` | `NULLABLE` | Course code (e.g., `CS-501`) |
+| `faculty_name` | `VARCHAR(100)` | `NULLABLE` | Instructor name |
+| `color` | `VARCHAR(20)` | `DEFAULT '#C96E5B', NOT NULL` | Semantic hex accent color |
+| `icon` | `VARCHAR(50)` | `DEFAULT 'book', NOT NULL` | Subject icon identifier |
+| `is_active` | `BOOLEAN` | `DEFAULT TRUE, INDEX` | Active / Soft-archived flag |
 
-*Note: Deleting a subject performs a soft archive (`is_active = FALSE`) to protect attendance history.*
+> **Subject Lifecycle Invariant**: Deleting a subject with recorded attendance performs a soft archive (`is_active = FALSE`) so historical session counts remain intact.
 
 ### 2.5 `timetable_entries`
-Recurring weekly routine schedule.
+Recurring weekly routine schedule slots.
 | Column | Type | Constraints | Description |
 |---|---|---|---|
-| `id` | VARCHAR(36) | PRIMARY KEY | Timetable UUID |
-| `semester_id` | VARCHAR(36) | FK(`semesters.id`), NOT NULL, INDEX | Semester scoping |
-| `subject_id` | VARCHAR(36) | FK(`subjects.id`), NOT NULL, INDEX | Subject reference |
-| `day_of_week` | INTEGER | NOT NULL | 0 = Monday, 6 = Sunday |
-| `start_time` | TIME | NULLABLE | Class start time |
-| `end_time` | TIME | NULLABLE | Class end time |
-| `room` | VARCHAR(50) | NULLABLE | Classroom / Hall |
-| `faculty_name` | VARCHAR(100) | NULLABLE | Faculty override |
+| `id` | `VARCHAR(36)` | `PRIMARY KEY` | Timetable slot UUID |
+| `semester_id` | `VARCHAR(36)` | `FK(semesters.id) ON DELETE CASCADE, INDEX` | Parent semester reference |
+| `subject_id` | `VARCHAR(36)` | `FK(subjects.id) ON DELETE CASCADE, INDEX` | Subject reference |
+| `day_of_week` | `INTEGER` | `CHECK (0..6)` | `0` = Monday ... `6` = Sunday |
+| `start_time` | `VARCHAR(10)` | `NULLABLE` | Class start time (`"HH:MM"`) |
+| `end_time` | `VARCHAR(10)` | `NULLABLE` | Class end time (`"HH:MM"`) |
+| `faculty_name` | `VARCHAR(100)` | `NULLABLE` | Optional slot faculty override |
+| `room` | `VARCHAR(50)` | `NULLABLE` | Classroom / Lab identifier |
+| `effective_from` | `DATE` | `NULLABLE` | Optional schedule effective start |
+| `effective_to` | `DATE` | `NULLABLE` | Optional schedule effective end |
 
 ### 2.6 `class_sessions`
-Discrete class instances on specific calendar dates.
+Discrete class instances occurring on specific calendar dates.
 | Column | Type | Constraints | Description |
 |---|---|---|---|
-| `id` | VARCHAR(36) | PRIMARY KEY | Session UUID |
-| `timetable_entry_id` | VARCHAR(36) | FK(`timetable_entries.id`), NULLABLE, INDEX | Originating recurring timetable slot |
-| `semester_id` | VARCHAR(36) | FK(`semesters.id`), NOT NULL, INDEX | Semester scoping |
-| `subject_id` | VARCHAR(36) | FK(`subjects.id`), NOT NULL, INDEX | Subject reference |
-| `date` | DATE | NOT NULL, INDEX | Date of class occurrence |
-| `start_time` | TIME | NULLABLE | Session start time |
-| `end_time` | TIME | NULLABLE | Session end time |
-| `room` | VARCHAR(50) | NULLABLE | Classroom / Lab |
-| `session_status` | VARCHAR(20) | DEFAULT 'SCHEDULED' | SCHEDULED / CANCELLED |
-| `is_extra` | BOOLEAN | DEFAULT FALSE | Extra class indicator |
+| `id` | `VARCHAR(36)` | `PRIMARY KEY` | Session UUID |
+| `semester_id` | `VARCHAR(36)` | `FK(semesters.id) ON DELETE CASCADE, INDEX` | Semester reference |
+| `subject_id` | `VARCHAR(36)` | `FK(subjects.id) ON DELETE CASCADE, INDEX` | Subject reference |
+| `date` | `DATE` | `NOT NULL, INDEX` | Calendar date of session |
+| `start_time` | `VARCHAR(10)` | `NULLABLE` | Session start time (`"HH:MM"`) |
+| `end_time` | `VARCHAR(10)` | `NULLABLE` | Session end time (`"HH:MM"`) |
+| `faculty_name` | `VARCHAR(100)` | `NULLABLE` | Instructor name |
+| `room` | `VARCHAR(50)` | `NULLABLE` | Classroom / Lab |
+| `session_status` | `VARCHAR(20)` | `DEFAULT 'SCHEDULED'` | `SCHEDULED`, `HELD`, `CANCELLED`, `HOLIDAY`, `NOT_HELD` |
+| `is_extra` | `BOOLEAN` | `DEFAULT FALSE, NOT NULL` | Unscheduled extra class indicator |
 
-*Note: Read endpoints (GET `/attendance/day`, GET `/timetable/weekly-status`) synthesize virtual slots on-the-fly without side-effect DB writes. Concrete `class_sessions` are materialized only when the student explicitly confirms/saves attendance for that date.*
+> **Virtual-to-Concrete Materialization**: Read endpoints (`GET /attendance/day`, `GET /timetable/weekly-status`) synthesize virtual schedule slots in memory without writing rows. Concrete `class_sessions` rows are materialized only when attendance is confirmed via `POST /attendance/bulk` or when an extra class is created via `POST /sessions/extra`.
 
 ### 2.7 `attendance_records`
-Student attendance marks for individual sessions.
+Student attendance marks for concrete class sessions.
 | Column | Type | Constraints | Description |
 |---|---|---|---|
-| `id` | VARCHAR(36) | PRIMARY KEY | Record UUID |
-| `class_session_id` | VARCHAR(36) | FK(`class_sessions.id`), NOT NULL, INDEX | Class session reference |
-| `student_id` | VARCHAR(36) | FK(`users.id`), NOT NULL, INDEX | Student reference |
-| `status` | VARCHAR(20) | NOT NULL | ATTENDED, ABSENT, NOT_HELD |
-| `marked_at` | TIMESTAMP | DEFAULT CURRENT_TIMESTAMP | Initial recording timestamp |
-| `updated_at` | TIMESTAMP | ON UPDATE CURRENT_TIMESTAMP | Last modification |
-| `source` | VARCHAR(50) | DEFAULT 'MANUAL' | MANUAL, IMPORT, etc. |
+| `id` | `VARCHAR(36)` | `PRIMARY KEY` | Attendance record UUID |
+| `class_session_id` | `VARCHAR(36)` | `FK(class_sessions.id) ON DELETE CASCADE, UNIQUE` | Target session reference |
+| `user_id` | `VARCHAR(36)` | `FK(users.id) ON DELETE CASCADE, INDEX` | Student owner reference |
+| `status` | `VARCHAR(20)` | `NOT NULL, CHECK (ATTENDED, ABSENT, NOT_HELD)` | Recorded attendance state |
+| `marked_at` | `TIMESTAMPTZ` | `DEFAULT now(), NOT NULL` | Initial marking timestamp |
+| `updated_at` | `TIMESTAMPTZ` | `DEFAULT now(), NOT NULL` | Last modification timestamp |
+| `source` | `VARCHAR(30)` | `DEFAULT 'manual', NOT NULL` | `manual`, `bulk_today`, `initial_setup` |
 
 ### 2.8 `attendance_audit_logs`
-Immutable audit log tracing all attendance corrections.
+Append-only immutable audit trail recording all attendance status changes.
 | Column | Type | Constraints | Description |
 |---|---|---|---|
-| `id` | VARCHAR(36) | PRIMARY KEY | Log UUID |
-| `attendance_record_id` | VARCHAR(36) | FK(`attendance_records.id`), NOT NULL, INDEX | Target record |
-| `user_id` | VARCHAR(36) | FK(`users.id`), NOT NULL | Actor user |
-| `original_status` | VARCHAR(20) | NOT NULL | Previous state |
-| `new_status` | VARCHAR(20) | NOT NULL | New state |
-| `changed_at` | TIMESTAMP | DEFAULT CURRENT_TIMESTAMP | Mutation timestamp |
-| `reason` | VARCHAR(255) | NULLABLE | Correction reason |
+| `id` | `VARCHAR(36)` | `PRIMARY KEY` | Audit log UUID |
+| `attendance_record_id` | `VARCHAR(36)` | `FK(attendance_records.id) ON DELETE CASCADE, INDEX` | Target attendance record |
+| `original_status` | `VARCHAR(20)` | `NULLABLE` | Status prior to edit |
+| `new_status` | `VARCHAR(20)` | `NOT NULL, CHECK (ATTENDED, ABSENT, NOT_HELD)` | Status after edit |
+| `changed_at` | `TIMESTAMPTZ` | `DEFAULT now(), NOT NULL` | Mutation timestamp (UTC) |
+| `changed_by` | `VARCHAR(36)` | `NOT NULL` | Actor `user_id` |
+| `reason` | `VARCHAR(255)` | `NULLABLE` | Reason for correction |
 
 ### 2.9 `holidays`
-Registered academic holidays, festivals, and breaks.
+Registered academic holidays, festivals, and multi-day breaks.
 | Column | Type | Constraints | Description |
 |---|---|---|---|
-| `id` | VARCHAR(36) | PRIMARY KEY | Holiday UUID |
-| `user_id` | VARCHAR(36) | FK(`users.id`), NOT NULL, INDEX | Student owner |
-| `semester_id` | VARCHAR(36) | FK(`semesters.id`), NULLABLE, INDEX | Semester scoping |
-| `title` | VARCHAR(150) | NOT NULL | Holiday title |
-| `category` | VARCHAR(50) | NOT NULL | Holiday category |
-| `start_date` | DATE | NOT NULL, INDEX | Holiday start |
-| `end_date` | DATE | NOT NULL, INDEX | Holiday end |
-| `notes` | TEXT | NULLABLE | Additional context |
+| `id` | `VARCHAR(36)` | `PRIMARY KEY` | Holiday UUID |
+| `user_id` | `VARCHAR(36)` | `FK(users.id) ON DELETE CASCADE, INDEX` | Student owner reference |
+| `semester_id` | `VARCHAR(36)` | `FK(semesters.id) ON DELETE CASCADE, NULLABLE` | Optional semester scoping |
+| `start_date` | `DATE` | `NOT NULL, INDEX` | Holiday start date |
+| `end_date` | `DATE` | `NOT NULL, CHECK (end_date >= start_date)` | Holiday end date |
+| `title` | `VARCHAR(150)` | `NOT NULL` | Holiday or break title |
+| `category` | `VARCHAR(50)` | `DEFAULT 'University Holiday'` | `University Holiday`, `Festival`, `Semester Break`, `Exam Break`, `Academic`, `Other` |
+| `notes` | `VARCHAR(255)` | `NULLABLE` | Optional description |
+| `source` | `VARCHAR(30)` | `DEFAULT 'manual', NOT NULL` | `manual`, `import_confirmed`, `setup_wizard` |
 
 ---
 
-## 3. Database Indexes
+## 3. Performance Indexes
 
-- `ix_users_email`: B-tree index on user email for fast authentication lookups.
-- `ix_semesters_user_active`: Composite indexing on user and active flag.
-- `ix_class_sessions_date`: Index on session dates for efficient Daily Today and Calendar range queries.
-- `ix_attendance_records_session`: Foreign key index enabling instant lookup of session status.
-
----
-
-## 4. Cloud Supabase Architecture & Row-Level Security (RLS)
-
-AttendHub is backed by a production PostgreSQL database hosted on **Supabase** (`vaoesgmcrzywmkhbjqvq`).
-
-### Complete Schema File:
-The comprehensive single-file schema definition is maintained in:
-- [`supabase/schema.sql`](../supabase/schema.sql)
-
-### Security & RLS Features:
-1. **Multi-Tenant Row-Level Security**:
-   - Every table in the `public` schema has `ROW LEVEL SECURITY` enabled.
-   - Ownership checks combine `TO authenticated` with `USING ((select auth.uid())::text = user_id)` (or hierarchical semester lookup).
-2. **Strict Immutability for Audit Trails**:
-   - `attendance_audit_logs` has `UPDATE` and `DELETE` policies unconditionally set to `USING (false)`.
-   - Automated triggers (`log_attendance_correction()`) append audit records when `status` is mutated.
-3. **Function Security**:
-   - Database functions declare `SECURITY INVOKER` and explicit `SET search_path = public` to mitigate search path escalation risks.
-4. **Foreign Key Performance Indexes**:
-   - Every foreign key and tenant scoping filter (`user_id`, `semester_id`, `class_session_id`, `date`) is indexed to ensure efficient plan execution and prevent table locks.
+Defined in [`supabase/schema.sql`](../supabase/schema.sql):
+- `idx_academic_profiles_user_id` on `academic_profiles(user_id)`
+- `idx_semesters_user_id` and `idx_semesters_user_active` on `semesters(user_id, is_active)`
+- `idx_subjects_semester_id` and `idx_subjects_semester_active` on `subjects(semester_id, is_active)`
+- `idx_timetable_entries_semester_id`, `idx_timetable_entries_subject_id`, and `idx_timetable_entries_day` on `timetable_entries(semester_id, day_of_week)`
+- `idx_class_sessions_semester_id`, `idx_class_sessions_subject_id`, `idx_class_sessions_date`, and `idx_class_sessions_semester_date` on `class_sessions(semester_id, date)`
+- `idx_holidays_user_id`, `idx_holidays_semester_id`, and `idx_holidays_dates` on `holidays(start_date, end_date)`
+- `idx_attendance_records_user_id`, `idx_attendance_records_session_id`, and `idx_attendance_records_user_status` on `attendance_records(user_id, status)`
+- `idx_audit_logs_record_id` and `idx_audit_logs_changed_by` on `attendance_audit_logs`
 
 ---
 
-## 5. Draft Document Import & Zero Storage Retention Policy
+## 4. Supabase Row-Level Security (RLS) & Triggers
 
-AttendHub enforces a strict **Zero-Retention Guarantee** for uploaded academic documents (timetables, holiday lists):
-
-1. **No Database File Storage**:
-   - PostgreSQL schema contains **zero binary columns** (`BYTEA`, `BLOB`, or Base64 strings) for raw uploaded files.
-   - Timetable documents and holiday circulars are strictly transient inputs.
-2. **No Permanent Object Storage**:
-   - AttendHub does not provision or persist files to Supabase Storage buckets.
-3. **In-Memory Draft Extraction**:
-   - Uploaded files are validated for MIME type and file signature in bounded FastAPI memory buffers (< 10MB).
-   - Extracted routine entries and holidays are converted to structured JSON responses and streamed to the client as editable drafts.
-   - Raw file buffers and temporary descriptors are immediately closed and unlinked (`unlink()`).
-4. **Confirmed Persistence Only**:
-   - Only validated, user-confirmed domain entities (`subjects`, `timetable_entries`, `holidays`) are inserted into PostgreSQL.
-
----
-
-## 6. Semester Scoping & Historical Preservation Semantics
-
-1. **Global vs Semester Scoping**:
-   - **Global Entities**: `users`, `academic_profiles` (University Name, Course, Duration, Graduation Start/End Years).
-   - **Semester-Scoped Entities**: `semesters`, `subjects`, `timetable_entries`, `class_sessions`, `attendance_records`, `attendance_audit_logs`, `holidays`.
-2. **History Preservation**:
-   - When a student switches semesters (`POST /api/v1/semesters/{id}/activate`), the previous semester's records are preserved intact.
-   - AttendHub does not delete, overwrite, or mutate past attendance records upon semester switching.
-   - Enrolled subjects from prior semesters remain associated with their respective `semester_id` and are not cloned into new semesters without explicit user import.
-
----
-
-## 7. Multi-Entity Atomic Setup Transactions
-
-The Academic Setup Wizard commits multi-entity configurations through a single atomic database transaction (`POST /api/v1/profile/setup`):
-
-```text
-BEGIN TRANSACTION;
-  1. Lock & Update user academic profile (name, university, course, graduation years).
-  2. Create or verify target semester (set is_active = TRUE, deactivate other semesters).
-  3. Create subjects linked to semester_id.
-  4. Create timetable routine entries linked to subjects.
-  5. Create semester-bound academic holidays.
-  6. (Optional) Create baseline attendance sessions and attendance records.
-COMMIT;
-```
-
-If any validation rule fails or an exception occurs during the process, the entire transaction rolls back cleanly, leaving zero orphaned or half-configured records.
-
+1. **Tenant Isolation Policies**:
+   - Every table in `public` has RLS enabled (`ALTER TABLE ... ENABLE ROW LEVEL SECURITY`).
+   - Direct user tables check `(select auth.uid())::text = user_id`.
+   - Semester-scoped tables (`subjects`, `timetable_entries`, `class_sessions`) check `EXISTS (SELECT 1 FROM public.semesters s WHERE s.id = semester_id AND s.user_id = (select auth.uid())::text)`.
+2. **Immutable Audit Trigger**:
+   - `tr_attendance_audit_log` automatically fires `public.log_attendance_correction()` on `AFTER UPDATE` of `attendance_records` whenever `OLD.status IS DISTINCT FROM NEW.status`.
+   - `attendance_audit_logs` enforces `USING (false)` on `UPDATE` and `DELETE` policies.
+3. **Zero Binary Retention**:
+   - No `BYTEA`, `BLOB`, or raw document columns exist in the schema. Uploaded routine/holiday files are parsed in memory and discarded immediately.

@@ -1,0 +1,30 @@
+services:
+  - type: web
+    name: attendhub-backend
+    runtime: python
+    rootDir: backend
+    plan: free
+    buildCommand: pip install --upgrade pip && pip install -r requirements.txt
+    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /health
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.9
+      - key: DATABASE_URL
+        sync: false
+      - key: SUPABASE_URL
+        value: https://vaoesgmcrzywmkhbjqvq.supabase.co
+      - key: SUPABASE_PUBLISHABLE_KEY
+        value: sb_publishable_iScYs-Oz5_0GQrgbiYINIw_HYa05sBU
+      - key: JWT_SECRET
+        generateValue: true
+      - key: REFRESH_TOKEN_SECRET
+        generateValue: true
+      - key: ACCESS_TOKEN_EXPIRE_MINUTES
+        value: "10080"
+      - key: REFRESH_TOKEN_EXPIRE_DAYS
+        value: "60"
+      - key: CORS_ORIGINS
+        value: '["*"]'
+      - key: LOCAL_STORAGE_DIR
+        value: /tmp/storage_uploads
