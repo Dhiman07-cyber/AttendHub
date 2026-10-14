@@ -11,7 +11,10 @@ class AppConfig {
   /// Injected at compile/build time from environment; never hardcoded.
   static const String googleServerClientId = String.fromEnvironment(
     'GOOGLE_SERVER_CLIENT_ID',
-    defaultValue: '',
+    defaultValue: String.fromEnvironment(
+      'GOOGLE_CLIENT_ID',
+      defaultValue: '',
+    ),
   );
 
   /// Whether Google authentication is configured for this build flavor.
