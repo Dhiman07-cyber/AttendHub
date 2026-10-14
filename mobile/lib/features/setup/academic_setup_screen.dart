@@ -1719,6 +1719,176 @@ class _AcademicSetupScreenState extends ConsumerState<AcademicSetupScreen> with 
           ),
           const SizedBox(height: 18),
 
+          // College / Semester Term Dates (Start & End)
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: AppColors.divider),
+              boxShadow: const [
+                BoxShadow(
+                  color: AppColors.shadowWarm,
+                  blurRadius: 6,
+                  offset: Offset(0, 2),
+                ),
+              ],
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(6),
+                      decoration: BoxDecoration(
+                        color: AppColors.terracotta.withValues(alpha: 0.12),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: const Icon(Icons.calendar_today_rounded, color: AppColors.terracotta, size: 18),
+                    ),
+                    const SizedBox(width: 10),
+                    const Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Term Dates (College Start & End)',
+                            style: TextStyle(fontWeight: FontWeight.w700, fontSize: 14, color: AppColors.ink),
+                          ),
+                          SizedBox(height: 2),
+                          Text(
+                            'Helps calculate attendance forecasts, trends, and milestone predictions accurately.',
+                            style: TextStyle(fontSize: 11, color: AppColors.inkMuted),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 14),
+                Row(
+                  children: [
+                    // Start Date Field
+                    Expanded(
+                      child: InkWell(
+                        onTap: () async {
+                          final picked = await showDatePicker(
+                            context: context,
+                            initialDate: _startDate,
+                            firstDate: DateTime(2020),
+                            lastDate: DateTime(2030),
+                            builder: (context, child) => Theme(
+                              data: Theme.of(context).copyWith(
+                                colorScheme: const ColorScheme.light(
+                                  primary: AppColors.terracotta,
+                                  onPrimary: Colors.white,
+                                  surface: AppColors.surface,
+                                ),
+                              ),
+                              child: child!,
+                            ),
+                          );
+                          if (picked != null) {
+                            setState(() {
+                              _startDate = picked;
+                              if (_endDate.isBefore(_startDate)) {
+                                _endDate = _startDate.add(const Duration(days: 120));
+                              }
+                            });
+                            _saveDraft();
+                          }
+                        },
+                        borderRadius: BorderRadius.circular(12),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                          decoration: BoxDecoration(
+                            color: AppColors.surfaceAlt,
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: AppColors.divider),
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Text('College / Term Start', style: TextStyle(fontSize: 11, color: AppColors.inkMuted)),
+                              const SizedBox(height: 4),
+                              Row(
+                                children: [
+                                  const Icon(Icons.event_available_rounded, size: 16, color: AppColors.terracotta),
+                                  const SizedBox(width: 6),
+                                  Text(
+                                    DateFormat('dd MMM yyyy').format(_startDate),
+                                    style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13, color: AppColors.ink),
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    // End Date Field
+                    Expanded(
+                      child: InkWell(
+                        onTap: () async {
+                          final picked = await showDatePicker(
+                            context: context,
+                            initialDate: _endDate,
+                            firstDate: _startDate,
+                            lastDate: DateTime(2030),
+                            builder: (context, child) => Theme(
+                              data: Theme.of(context).copyWith(
+                                colorScheme: const ColorScheme.light(
+                                  primary: AppColors.terracotta,
+                                  onPrimary: Colors.white,
+                                  surface: AppColors.surface,
+                                ),
+                              ),
+                              child: child!,
+                            ),
+                          );
+                          if (picked != null) {
+                            setState(() => _endDate = picked);
+                            _saveDraft();
+                          }
+                        },
+                        borderRadius: BorderRadius.circular(12),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                          decoration: BoxDecoration(
+                            color: AppColors.surfaceAlt,
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: AppColors.divider),
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Text('College / Term End', style: TextStyle(fontSize: 11, color: AppColors.inkMuted)),
+                              const SizedBox(height: 4),
+                              Row(
+                                children: [
+                                  const Icon(Icons.event_busy_rounded, size: 16, color: AppColors.amberDark),
+                                  const SizedBox(width: 6),
+                                  Text(
+                                    DateFormat('dd MMM yyyy').format(_endDate),
+                                    style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13, color: AppColors.ink),
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 18),
+
           // College Schedule & Working Days Framework (Compulsory)
           Container(
             padding: const EdgeInsets.all(16),

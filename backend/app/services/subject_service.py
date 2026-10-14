@@ -1,6 +1,6 @@
 from typing import List, Optional
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func, and_
+from sqlalchemy import select, func, and_, delete
 from fastapi import HTTPException, status
 
 from app.models.subject import Subject
@@ -9,7 +9,7 @@ from app.models.session import ClassSession
 from app.models.attendance import AttendanceRecord
 from app.models.profile import AcademicProfile
 from app.models.timetable import TimetableEntry
-from app.schemas.subject import SubjectCreate, SubjectUpdate, SubjectOut, SubjectDetailOut
+from app.schemas.subject import SubjectCreate, SubjectUpdate, SubjectOut, SubjectDetailOut, SubjectAttendanceAdjustRequest
 from app.calculations.attendance_engine import calculate_subject_metrics
 from app.services.academic_service import get_active_semester
 
@@ -237,3 +237,104 @@ async def delete_subject(db: AsyncSession, user_id: str, subject_id: str) -> dic
         await db.delete(subj)
         await db.commit()
         return {"status": "deleted", "message": "Subject removed successfully."}
+
+async def adjust_subject_attendance(
+    db: AsyncSession,
+    user_id: str,
+    subject_id: str,
+    data: SubjectAttendanceAdjustRequest
+) -> SubjectDetailOut:
+    stmt = (
+        select(Subject, Semester)
+        .join(Semester, Subject.semester_id == Semester.id)
+        .where(Subject.id == subject_id, Semester.user_id == user_id)
+    )
+    res = await db.execute(stmt)
+    row = res.first()
+    if not row:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Subject not found.")
+    subj, sem = row
+
+    if data.attended > data.conducted:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Attended classes cannot exceed conducted classes."
+        )
+
+    # 1. Clean up prior initial_setup and manual_adjustment records/sessions for this subject
+    adj_records_stmt = select(AttendanceRecord).join(ClassSession).where(
+        ClassSession.subject_id == subject_id,
+        ClassSession.semester_id == sem.id,
+        AttendanceRecord.user_id == user_id,
+        AttendanceRecord.source.in_(["initial_setup", "manual_adjustment"])
+    )
+    adj_recs = (await db.execute(adj_records_stmt)).scalars().all()
+    if adj_recs:
+        sess_ids = [r.class_session_id for r in adj_recs]
+        await db.execute(delete(AttendanceRecord).where(AttendanceRecord.id.in_([r.id for r in adj_recs])))
+        await db.execute(delete(ClassSession).where(ClassSession.id.in_(sess_ids)))
+
+    # 2. Count remaining concrete daily markings if any
+    daily_stmt = select(AttendanceRecord.status, func.count()).join(ClassSession).where(
+        ClassSession.subject_id == subject_id,
+        ClassSession.semester_id == sem.id,
+        AttendanceRecord.user_id == user_id,
+    ).group_by(AttendanceRecord.status)
+    daily_res = await db.execute(daily_stmt)
+    daily_counts = dict(daily_res.all())
+    daily_att = daily_counts.get("ATTENDED", 0)
+    daily_abs = daily_counts.get("ABSENT", 0)
+    daily_cond = daily_att + daily_abs
+
+    if data.attended >= daily_att and data.conducted >= daily_cond and (data.conducted - data.attended) >= daily_abs:
+        needed_att = data.attended - daily_att
+        needed_abs = (data.conducted - data.attended) - daily_abs
+    else:
+        # If daily markings contradict the new total, clear all sessions for this subject and recreate exactly
+        all_recs_stmt = select(AttendanceRecord).join(ClassSession).where(
+            ClassSession.subject_id == subject_id,
+            ClassSession.semester_id == sem.id,
+            AttendanceRecord.user_id == user_id,
+        )
+        all_recs = (await db.execute(all_recs_stmt)).scalars().all()
+        if all_recs:
+            all_sess_ids = [r.class_session_id for r in all_recs]
+            await db.execute(delete(AttendanceRecord).where(AttendanceRecord.id.in_([r.id for r in all_recs])))
+            await db.execute(delete(ClassSession).where(ClassSession.id.in_(all_sess_ids)))
+        needed_att = data.attended
+        needed_abs = data.conducted - data.attended
+
+    for _ in range(needed_att):
+        s = ClassSession(
+            semester_id=sem.id,
+            subject_id=subj.id,
+            date=sem.start_date,
+            session_status="HELD"
+        )
+        db.add(s)
+        await db.flush()
+        db.add(AttendanceRecord(
+            class_session_id=s.id,
+            user_id=user_id,
+            status="ATTENDED",
+            source="manual_adjustment"
+        ))
+
+    for _ in range(needed_abs):
+        s = ClassSession(
+            semester_id=sem.id,
+            subject_id=subj.id,
+            date=sem.start_date,
+            session_status="HELD"
+        )
+        db.add(s)
+        await db.flush()
+        db.add(AttendanceRecord(
+            class_session_id=s.id,
+            user_id=user_id,
+            status="ABSENT",
+            source="manual_adjustment"
+        ))
+
+    await db.commit()
+    return await get_subject_detail(db, user_id, subject_id)

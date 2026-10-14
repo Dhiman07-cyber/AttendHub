@@ -1,9 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:intl/intl.dart';
 import '../../core/network/api_client.dart';
 import '../../core/network/api_endpoints.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_typography.dart';
+import '../../shared/models/semester_model.dart';
+import '../../shared/providers/semesters_provider.dart';
+import '../../shared/widgets/app_toast.dart';
 import '../auth/providers/auth_provider.dart';
 import '../dashboard/providers/dashboard_provider.dart';
 import 'providers/profile_provider.dart';
@@ -17,6 +21,205 @@ class ProfileScreen extends ConsumerWidget {
     required this.onBack,
     this.onOpenSetup,
   });
+
+  String _formatShortDate(String dateStr) {
+    try {
+      final dt = DateTime.parse(dateStr);
+      return DateFormat('dd MMM yyyy').format(dt);
+    } catch (_) {
+      return dateStr;
+    }
+  }
+
+  void _showEditSemesterDatesDialog(
+    BuildContext context,
+    WidgetRef ref,
+    SemesterModel sem,
+  ) {
+    DateTime start = DateTime.tryParse(sem.startDate) ?? DateTime(2026, 8, 1);
+    DateTime end = DateTime.tryParse(sem.endDate) ?? DateTime(2026, 12, 20);
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setModalState) => Container(
+          padding: EdgeInsets.fromLTRB(20, 20, 20, MediaQuery.of(ctx).viewInsets.bottom + 24),
+          decoration: const BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.only(
+              topLeft: Radius.circular(24),
+              topRight: Radius.circular(24),
+            ),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Center(
+                child: Container(
+                  width: 38,
+                  height: 4,
+                  margin: const EdgeInsets.only(bottom: 16),
+                  decoration: BoxDecoration(
+                    color: AppColors.divider,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              ),
+              Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: AppColors.terracottaLight,
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: const Icon(Icons.date_range_rounded, color: AppColors.terracotta, size: 20),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Edit Semester Dates (${sem.label})',
+                          style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 16, color: AppColors.ink),
+                        ),
+                        const SizedBox(height: 2),
+                        const Text(
+                          'Specify college start and end dates for predictions & milestone tracking.',
+                          style: TextStyle(fontSize: 11.5, color: AppColors.inkMuted),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 20),
+              Row(
+                children: [
+                  Expanded(
+                    child: InkWell(
+                      onTap: () async {
+                        final picked = await showDatePicker(
+                          context: context,
+                          initialDate: start,
+                          firstDate: DateTime(2020),
+                          lastDate: DateTime(2030),
+                        );
+                        if (picked != null) {
+                          setModalState(() {
+                            start = picked;
+                            if (end.isBefore(start)) {
+                              end = start.add(const Duration(days: 120));
+                            }
+                          });
+                        }
+                      },
+                      borderRadius: BorderRadius.circular(12),
+                      child: Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: AppColors.surfaceAlt,
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: AppColors.divider),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text('College Start Date', style: TextStyle(fontSize: 11, color: AppColors.inkMuted)),
+                            const SizedBox(height: 4),
+                            Text(
+                              DateFormat('dd MMM yyyy').format(start),
+                              style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13, color: AppColors.ink),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: InkWell(
+                      onTap: () async {
+                        final picked = await showDatePicker(
+                          context: context,
+                          initialDate: end,
+                          firstDate: start,
+                          lastDate: DateTime(2030),
+                        );
+                        if (picked != null) {
+                          setModalState(() => end = picked);
+                        }
+                      },
+                      borderRadius: BorderRadius.circular(12),
+                      child: Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: AppColors.surfaceAlt,
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: AppColors.divider),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text('College End Date', style: TextStyle(fontSize: 11, color: AppColors.inkMuted)),
+                            const SizedBox(height: 4),
+                            Text(
+                              DateFormat('dd MMM yyyy').format(end),
+                              style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13, color: AppColors.ink),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 24),
+              SizedBox(
+                width: double.infinity,
+                height: 46,
+                child: ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.terracotta,
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  ),
+                  onPressed: () async {
+                    Navigator.pop(ctx);
+                    try {
+                      final client = ApiClient();
+                      await client.dio.patch(
+                        '${ApiEndpoints.semesters}/${sem.id}',
+                        data: {
+                          'start_date': DateFormat('yyyy-MM-dd').format(start),
+                          'end_date': DateFormat('yyyy-MM-dd').format(end),
+                        },
+                      );
+                      await ref.read(semestersProvider.notifier).loadSemesters();
+                      ref.invalidate(profileProvider);
+                      ref.invalidate(dashboardProvider);
+                      if (context.mounted) {
+                        AppToast.success(context, 'Semester dates updated successfully');
+                      }
+                    } catch (e) {
+                      if (context.mounted) {
+                        AppToast.error(context, 'Failed to update semester dates');
+                      }
+                    }
+                  },
+                  child: const Text('Save Dates', style: TextStyle(fontWeight: FontWeight.w700)),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
 
   void _showEditFieldSheet({
     required BuildContext context,
@@ -154,6 +357,8 @@ class ProfileScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final profileAsync = ref.watch(profileProvider);
+    final semestersState = ref.watch(semestersProvider);
+    final activeSem = semestersState.activeSemester;
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -373,7 +578,7 @@ class ProfileScreen extends ConsumerWidget {
                       label: 'Current Semester',
                       value: (profile.currentSemesterLabel != null && profile.currentSemesterLabel!.isNotEmpty)
                           ? profile.currentSemesterLabel!
-                          : 'Not Set',
+                          : (activeSem?.label ?? 'Not Set'),
                       onTap: () {
                         ScaffoldMessenger.of(context).showSnackBar(
                           SnackBar(
@@ -393,6 +598,16 @@ class ProfileScreen extends ConsumerWidget {
                         );
                       },
                     ),
+                    if (activeSem != null) ...[
+                      const Divider(color: AppColors.divider, height: 1),
+                      _buildRowItem(
+                        icon: Icons.date_range_outlined,
+                        label: 'Semester Dates',
+                        value: '${_formatShortDate(activeSem.startDate)} – ${_formatShortDate(activeSem.endDate)}',
+                        isEditable: true,
+                        onTap: () => _showEditSemesterDatesDialog(context, ref, activeSem),
+                      ),
+                    ],
                     const Divider(color: AppColors.divider, height: 1),
                     _buildRowItem(
                       icon: Icons.calendar_month_outlined,

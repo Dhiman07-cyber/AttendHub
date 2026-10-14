@@ -17,6 +17,8 @@ class AppToast {
     );
   }
 
+  static void error(BuildContext context, String message) => showError(context, message);
+
   /// Displays a success toast with sage accent and checkmark icon.
   static void showSuccess(BuildContext context, String message) {
     _show(
@@ -28,6 +30,8 @@ class AppToast {
       duration: const Duration(seconds: 2),
     );
   }
+
+  static void success(BuildContext context, String message) => showSuccess(context, message);
 
   /// Displays a "Coming Soon" toast with dark espresso card, amber accent, and hourglass icon.
   static void showComingSoon(BuildContext context, {String feature = 'Upload'}) {

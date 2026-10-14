@@ -4,9 +4,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.db.session import get_db
 from app.api.dependencies import get_current_user
 from app.models.user import User
-from app.schemas.subject import SubjectOut, SubjectDetailOut, SubjectCreate, SubjectUpdate
+from app.schemas.subject import SubjectOut, SubjectDetailOut, SubjectCreate, SubjectUpdate, SubjectAttendanceAdjustRequest
 from app.services.subject_service import (
-    list_subjects, get_subject_detail, create_subject, update_subject, delete_subject
+    list_subjects, get_subject_detail, create_subject, update_subject, delete_subject,
+    adjust_subject_attendance
 )
 
 router = APIRouter(prefix="/subjects", tags=["Subjects"])
@@ -49,6 +50,17 @@ async def modify_subject(
 ):
     """Update subject properties."""
     return await update_subject(db, current_user.id, id, data)
+
+@router.put("/{id}/attendance", response_model=SubjectDetailOut)
+@router.patch("/{id}/attendance", response_model=SubjectDetailOut)
+async def adjust_attendance(
+    id: str,
+    data: SubjectAttendanceAdjustRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """Directly adjust or calibrate subject attendance records (attended & conducted counts)."""
+    return await adjust_subject_attendance(db, current_user.id, id, data)
 
 @router.delete("/{id}")
 async def remove_subject(

@@ -4,9 +4,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.db.session import get_db
 from app.api.dependencies import get_current_user
 from app.models.user import User
-from app.schemas.semester import SemesterOut, SemesterCreate, SemesterSwitchRequest
+from app.schemas.semester import SemesterOut, SemesterCreate, SemesterUpdate, SemesterSwitchRequest
 from app.services.academic_service import (
-    list_semesters, create_semester, switch_semester
+    list_semesters, create_semester, update_semester, switch_semester
 )
 
 router = APIRouter(prefix="/semesters", tags=["Semesters"])
@@ -27,6 +27,16 @@ async def add_semester(
 ):
     """Add a new semester record."""
     return await create_semester(db, current_user.id, data)
+
+@router.patch("/{id}", response_model=SemesterOut)
+async def modify_semester(
+    id: str,
+    data: SemesterUpdate,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """Update semester term details like start_date, end_date, total_weeks, or label."""
+    return await update_semester(db, current_user.id, id, data)
 
 @router.post("/switch", response_model=SemesterOut)
 async def change_active_semester(

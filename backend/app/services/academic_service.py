@@ -171,6 +171,31 @@ async def create_semester(db: AsyncSession, user_id: str, data: SemesterCreate) 
     await db.refresh(sem)
     return _compute_semester_stats(sem)
 
+async def update_semester(db: AsyncSession, user_id: str, semester_id: str, data: SemesterUpdate) -> SemesterOut:
+    stmt = select(Semester).where(Semester.id == semester_id, Semester.user_id == user_id)
+    res = await db.execute(stmt)
+    sem = res.scalar_one_or_none()
+    if not sem:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Semester not found.")
+
+    if data.label is not None:
+        sem.label = data.label.strip()
+    if data.start_date is not None:
+        sem.start_date = data.start_date
+    if data.end_date is not None:
+        sem.end_date = data.end_date
+    if data.status is not None:
+        sem.status = data.status
+    if data.total_weeks is not None:
+        sem.total_weeks = data.total_weeks
+    elif data.start_date is not None or data.end_date is not None:
+        total_days = max(1, (sem.end_date - sem.start_date).days)
+        sem.total_weeks = max(1, round(total_days / 7))
+
+    await db.commit()
+    await db.refresh(sem)
+    return _compute_semester_stats(sem)
+
 async def get_setup_status(db: AsyncSession, user_id: str) -> SetupStatusOut:
     stmt = select(AcademicProfile).where(AcademicProfile.user_id == user_id)
     res = await db.execute(stmt)
@@ -272,6 +297,32 @@ async def execute_academic_setup(db: AsyncSession, user_id: str, request: FullAc
     profile.current_semester_id = target_sem.id
 
     # Subjects
+    # Soft-deactivate subjects in target_sem that are no longer present in request.subjects
+    existing_subs_stmt = select(Subject).where(Subject.semester_id == target_sem.id)
+    existing_subs_res = await db.execute(existing_subs_stmt)
+    all_existing_subs = existing_subs_res.scalars().all()
+    req_sub_names = {s.name.strip().lower() for s in request.subjects}
+
+    for ex_sub in all_existing_subs:
+        if ex_sub.name.strip().lower() not in req_sub_names:
+            ex_sub.is_active = False
+            # Remove timetable entries for deactivated subject
+            await db.execute(
+                delete(TimetableEntry).where(TimetableEntry.subject_id == ex_sub.id)
+            )
+            # Remove initial_setup records/sessions for deactivated subject
+            old_recs_stmt = select(AttendanceRecord).join(ClassSession).where(
+                ClassSession.subject_id == ex_sub.id,
+                ClassSession.semester_id == target_sem.id,
+                AttendanceRecord.user_id == user_id,
+                AttendanceRecord.source == "initial_setup"
+            )
+            old_recs = (await db.execute(old_recs_stmt)).scalars().all()
+            if old_recs:
+                s_ids = [r.class_session_id for r in old_recs]
+                await db.execute(delete(AttendanceRecord).where(AttendanceRecord.id.in_([r.id for r in old_recs])))
+                await db.execute(delete(ClassSession).where(ClassSession.id.in_(s_ids)))
+
     created_subjects_map = {}
     for sub_draft in request.subjects:
         subj_stmt = select(Subject).where(Subject.semester_id == target_sem.id, Subject.name == sub_draft.name.strip())
@@ -344,7 +395,24 @@ async def execute_academic_setup(db: AsyncSession, user_id: str, request: FullAc
         )
         db.add(hol)
 
-    # Starting attendance
+    # Starting attendance: Clean up prior initial_setup attendance records and their class sessions
+    # for this semester to guarantee that re-saving setup never duplicates or doubles starting attendance
+    prior_init_stmt = select(AttendanceRecord).join(ClassSession).where(
+        ClassSession.semester_id == target_sem.id,
+        AttendanceRecord.user_id == user_id,
+        AttendanceRecord.source == "initial_setup"
+    )
+    prior_init_res = await db.execute(prior_init_stmt)
+    prior_init_recs = prior_init_res.scalars().all()
+    if prior_init_recs:
+        prior_session_ids = [r.class_session_id for r in prior_init_recs]
+        await db.execute(
+            delete(AttendanceRecord).where(AttendanceRecord.id.in_([r.id for r in prior_init_recs]))
+        )
+        await db.execute(
+            delete(ClassSession).where(ClassSession.id.in_(prior_session_ids))
+        )
+
     for start_att in request.starting_attendance:
         sub_obj = created_subjects_map.get(start_att.subject_name.strip().lower())
         if sub_obj and start_att.conducted_count > 0:

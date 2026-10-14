@@ -1,10 +1,17 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:intl/intl.dart';
+import '../../core/network/api_client.dart';
+import '../../core/network/api_endpoints.dart';
 import '../../core/theme/app_colors.dart';
+import '../../shared/widgets/app_toast.dart';
 import '../../shared/widgets/landscape_header.dart';
 import '../../shared/widgets/liquid_glass_card.dart';
 import '../../shared/widgets/shimmer_skeleton.dart';
+import '../analytics/providers/analytics_provider.dart';
+import '../dashboard/providers/dashboard_provider.dart';
 import '../setup/academic_setup_screen.dart';
+import '../subjects/providers/subjects_provider.dart';
 import 'providers/today_provider.dart';
 
 class TodayScreen extends ConsumerStatefulWidget {
@@ -132,6 +139,21 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
     final isAbsent = entry['is_absent'] == true;
     final isNotHeld = entry['is_not_held'] == true;
 
+    final todayState = ref.read(todayProvider);
+    DateTime slotDate;
+    if (entry['date'] != null) {
+      slotDate = DateTime.tryParse(entry['date'].toString()) ?? DateTime.now();
+    } else {
+      final now = DateTime.now();
+      final monday = now.subtract(Duration(days: now.weekday - 1)).add(Duration(days: 7 * todayState.weekOffset));
+      final dow = entry['day_of_week'] is int ? entry['day_of_week'] as int : _allDays.indexOf(dayName);
+      slotDate = monday.add(Duration(days: dow.clamp(0, 6)));
+    }
+    final now = DateTime.now();
+    final todayMidnight = DateTime(now.year, now.month, now.day);
+    final targetMidnight = DateTime(slotDate.year, slotDate.month, slotDate.day);
+    final isFuture = targetMidnight.isAfter(todayMidnight);
+
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -189,7 +211,7 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
                       ),
                       const SizedBox(height: 2),
                       Text(
-                        '$dayName • $startTime – $endTime',
+                        '$dayName (${DateFormat('dd MMM').format(slotDate)}) • $startTime – $endTime',
                         style: const TextStyle(
                           fontSize: 12,
                           fontWeight: FontWeight.w600,
@@ -206,7 +228,7 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
               ],
             ),
 
-            const SizedBox(height: 20),
+            const SizedBox(height: 18),
 
             // Class Detail Chips Row
             Wrap(
@@ -229,29 +251,114 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
               ],
             ),
 
-            const SizedBox(height: 22),
+            const SizedBox(height: 20),
 
-            // Read-Only Guidance Note
-            Container(
-              padding: const EdgeInsets.all(14),
-              decoration: BoxDecoration(
-                color: const Color(0xFFF9F7F5),
-                borderRadius: BorderRadius.circular(14),
-                border: Border.all(color: AppColors.divider),
-              ),
-              child: const Row(
-                children: [
-                  Icon(Icons.info_outline_rounded, size: 20, color: AppColors.inkMuted),
-                  SizedBox(width: 12),
-                  Expanded(
-                    child: Text(
-                      'Routine is a read-only weekly schedule. Attendance marking is performed exclusively on the Dashboard.',
-                      style: TextStyle(fontSize: 11.5, color: AppColors.inkMuted, height: 1.4),
+            // Attendance Action Section or Future Notice
+            if (isFuture)
+              Container(
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF9F7F5),
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(color: AppColors.divider),
+                ),
+                child: const Row(
+                  children: [
+                    Icon(Icons.event_outlined, size: 20, color: AppColors.inkMuted),
+                    SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        'This class is scheduled in the future. Attendance can be recorded once class day arrives.',
+                        style: TextStyle(fontSize: 12, color: AppColors.inkMuted, height: 1.4),
+                      ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
+              )
+            else
+              Container(
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: AppColors.surfaceAlt,
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: AppColors.divider),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        const Icon(Icons.touch_app_outlined, size: 17, color: AppColors.terracotta),
+                        const SizedBox(width: 8),
+                        Text(
+                          'Update Attendance (${DateFormat('dd MMM').format(slotDate)})',
+                          style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13, color: AppColors.ink),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 4),
+                    const Text(
+                      'Tap a status below to record or update attendance for this class:',
+                      style: TextStyle(fontSize: 11.5, color: AppColors.inkMuted),
+                    ),
+                    const SizedBox(height: 12),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: _buildAttendanceActionBtn(
+                            label: 'Attended',
+                            icon: Icons.check_circle_outline_rounded,
+                            isSelected: isAttended,
+                            color: AppColors.sageDark,
+                            activeBg: AppColors.sageLight,
+                            onPressed: () => _markSlotAttendance(
+                              context: context,
+                              sheetCtx: ctx,
+                              entry: entry,
+                              slotDate: slotDate,
+                              status: 'ATTENDED',
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: _buildAttendanceActionBtn(
+                            label: 'Absent',
+                            icon: Icons.cancel_outlined,
+                            isSelected: isAbsent,
+                            color: AppColors.coral,
+                            activeBg: AppColors.coralLight,
+                            onPressed: () => _markSlotAttendance(
+                              context: context,
+                              sheetCtx: ctx,
+                              entry: entry,
+                              slotDate: slotDate,
+                              status: 'ABSENT',
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: _buildAttendanceActionBtn(
+                            label: 'Not Held',
+                            icon: Icons.remove_circle_outline_rounded,
+                            isSelected: isNotHeld,
+                            color: AppColors.inkMuted,
+                            activeBg: const Color(0xFFEBE7E2),
+                            onPressed: () => _markSlotAttendance(
+                              context: context,
+                              sheetCtx: ctx,
+                              entry: entry,
+                              slotDate: slotDate,
+                              status: 'NOT_HELD',
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
               ),
-            ),
 
             const SizedBox(height: 18),
 
@@ -278,6 +385,93 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
                   );
                 },
               ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _markSlotAttendance({
+    required BuildContext context,
+    required BuildContext sheetCtx,
+    required Map<String, dynamic> entry,
+    required DateTime slotDate,
+    required String status,
+  }) async {
+    Navigator.pop(sheetCtx);
+    try {
+      final client = ApiClient();
+      final dateStr = DateFormat('yyyy-MM-dd').format(slotDate);
+      final item = <String, dynamic>{
+        'status': status,
+        if (entry['session_id'] != null && (entry['session_id'] as String).isNotEmpty)
+          'session_id': entry['session_id'],
+        if (entry['timetable_entry_id'] != null && (entry['timetable_entry_id'] as String).isNotEmpty)
+          'timetable_entry_id': entry['timetable_entry_id'],
+        if (entry['subject_id'] != null && (entry['subject_id'] as String).isNotEmpty)
+          'subject_id': entry['subject_id'],
+      };
+
+      await client.dio.post(
+        ApiEndpoints.bulkDayAttendance,
+        data: {
+          'date': dateStr,
+          'records': [item],
+          'items': [item],
+        },
+      );
+
+      await ref.read(todayProvider.notifier).loadToday();
+      ref.invalidate(dashboardProvider);
+      ref.invalidate(subjectsProvider);
+      ref.invalidate(analyticsProvider);
+
+      if (context.mounted) {
+        final label = status == 'ATTENDED' ? 'Attended' : (status == 'ABSENT' ? 'Absent' : 'Not Held');
+        AppToast.success(context, 'Marked as $label for ${DateFormat('dd MMM').format(slotDate)}');
+      }
+    } catch (e) {
+      if (context.mounted) {
+        AppToast.error(context, 'Failed to update attendance');
+      }
+    }
+  }
+
+  Widget _buildAttendanceActionBtn({
+    required String label,
+    required IconData icon,
+    required bool isSelected,
+    required Color color,
+    required Color activeBg,
+    required VoidCallback onPressed,
+  }) {
+    return InkWell(
+      onTap: onPressed,
+      borderRadius: BorderRadius.circular(10),
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 10),
+        decoration: BoxDecoration(
+          color: isSelected ? activeBg : Colors.white,
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(
+            color: isSelected ? color : AppColors.divider,
+            width: isSelected ? 1.5 : 1.0,
+          ),
+        ),
+        child: Column(
+          children: [
+            Icon(icon, size: 18, color: isSelected ? color : AppColors.inkMuted),
+            const SizedBox(height: 4),
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 11,
+                fontWeight: isSelected ? FontWeight.w800 : FontWeight.w600,
+                color: isSelected ? color : AppColors.ink,
+              ),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
             ),
           ],
         ),

@@ -131,7 +131,7 @@ void main() {
       expect(checkmarkIcons, findsOneWidget);
     });
 
-    testWidgets('Tapping a slot opens read-only details sheet without daily marking buttons', (tester) async {
+    testWidgets('Tapping a slot opens details sheet with quick attendance update actions', (tester) async {
       await tester.pumpWidget(createTestWidget());
       await tester.pumpAndSettle();
 
@@ -139,15 +139,17 @@ void main() {
       await tester.tap(slotFinder);
       await tester.pumpAndSettle();
 
-      // Read-only notice
-      expect(find.textContaining('Attendance marking is performed exclusively on the Dashboard'), findsOneWidget);
+      // Interactive update prompt and options
+      expect(find.textContaining('Update Attendance'), findsOneWidget);
       expect(find.text('Edit Routine in Setup Wizard'), findsOneWidget);
-      expect(find.text('Attended'), findsOneWidget);
+      expect(find.text('Attended'), findsWidgets);
+      expect(find.text('Absent'), findsWidgets);
+      expect(find.text('Not Held'), findsWidgets);
 
       // Close bottom sheet
       await tester.tap(find.byIcon(Icons.close_rounded));
       await tester.pumpAndSettle();
-      expect(find.textContaining('Attendance marking is performed exclusively on the Dashboard'), findsNothing);
+      expect(find.textContaining('Update Attendance'), findsNothing);
     });
 
     testWidgets('Empty timetable state displays clean setup message', (tester) async {

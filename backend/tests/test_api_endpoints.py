@@ -178,4 +178,67 @@ async def test_google_verification_and_branding_endpoints():
         assert terms_resp.status_code == 200
         assert 'content="google1ca5ec019afa568b"' in terms_resp.text
 
+@pytest.mark.asyncio
+async def test_update_semester_and_adjust_attendance():
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        # Register user
+        user_email = f"adjust_test_{uuid.uuid4().hex[:6]}@adtu.edu.in"
+        reg_resp = await client.post("/api/v1/auth/register", json={
+            "email": user_email,
+            "password": "Password123!",
+            "full_name": "Adjust Student",
+            "university_name": "Test University",
+            "course_name": "Computer Science",
+            "current_semester_number": 5
+        })
+        assert reg_resp.status_code == 201
+        token = reg_resp.json()["access_token"]
+        headers = {"Authorization": f"Bearer {token}"}
+
+        # 1. Test PATCH /api/v1/semesters/{id}
+        sems = (await client.get("/api/v1/semesters", headers=headers)).json()
+        active_sem = next(s for s in sems if s["is_active"])
+        patch_sem_resp = await client.patch(
+            f"/api/v1/semesters/{active_sem['id']}",
+            json={
+                "start_date": "2026-08-10",
+                "end_date": "2026-12-15"
+            },
+            headers=headers
+        )
+        assert patch_sem_resp.status_code == 200
+        updated_sem = patch_sem_resp.json()
+        assert updated_sem["start_date"] == "2026-08-10"
+        assert updated_sem["end_date"] == "2026-12-15"
+
+        # 2. Test PUT /api/v1/subjects/{id}/attendance
+        subs = (await client.get("/api/v1/subjects", headers=headers)).json()
+        first_sub = subs[0]
+        adjust_resp = await client.put(
+            f"/api/v1/subjects/{first_sub['id']}/attendance",
+            json={
+                "attended": 18,
+                "conducted": 20
+            },
+            headers=headers
+        )
+        assert adjust_resp.status_code == 200
+        sub_detail = adjust_resp.json()
+        assert sub_detail["attended"] == 18
+        assert sub_detail["conducted"] == 20
+        assert sub_detail["percentage"] == 90.0
+
+        # Invariant check: attended > conducted must be 400
+        bad_resp = await client.put(
+            f"/api/v1/subjects/{first_sub['id']}/attendance",
+            json={
+                "attended": 25,
+                "conducted": 20
+            },
+            headers=headers
+        )
+        assert bad_resp.status_code == 400
+
+
 

@@ -16,6 +16,10 @@ class SubjectUpdate(BaseModel):
     icon: Optional[str] = None
     is_active: Optional[bool] = None
 
+class SubjectAttendanceAdjustRequest(BaseModel):
+    attended: int = Field(..., ge=0)
+    conducted: int = Field(..., ge=0)
+
 class SubjectOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
     id: str
