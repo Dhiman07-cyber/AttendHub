@@ -327,22 +327,31 @@ class AuthNotifier extends StateNotifier<AuthState> {
         user: user,
       );
       return true;
-    } on PlatformException catch (pEx) {
-      final msg = pEx.message ?? 'Google Sign-In is unavailable on this device platform.';
+    } on PlatformException catch (pEx, st) {
+      debugPrint('[Google Auth PlatformException] ${pEx.code}: ${pEx.message}\n$st');
+      final msg = pEx.message ?? 'Google Sign-In is unavailable on this device platform (${pEx.code}).';
       state = state.copyWith(
         isAuthenticated: false,
         isLoading: false,
         errorMessage: msg,
       );
       return false;
-    } catch (e) {
+    } catch (e, st) {
+      debugPrint('[Google Auth Error] $e\n$st');
       String msg = 'Google authentication failed.';
       if (e is DioException) {
         if (e.response?.data is Map && e.response?.data['detail'] != null) {
           msg = _parseErrorDetail(e.response!.data['detail'], defaultMsg: msg);
+        } else if (e.response?.data is String && (e.response!.data as String).isNotEmpty) {
+          msg = e.response!.data as String;
         } else if (e.type == DioExceptionType.connectionTimeout || e.type == DioExceptionType.connectionError) {
           msg = "Couldn't connect to server. Check your connection.";
+        } else if (e.message != null && e.message!.isNotEmpty) {
+          msg = e.message!;
         }
+      } else {
+        final errStr = e.toString().replaceAll('Exception:', '').trim();
+        msg = errStr.isNotEmpty ? 'Google Sign-In: $errStr' : 'Google authentication failed.';
       }
       state = state.copyWith(
         isAuthenticated: false,
