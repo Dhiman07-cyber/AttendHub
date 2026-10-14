@@ -76,6 +76,11 @@ class AnalyticsOverviewModel {
   final List<InsightModel> insights;
   final List<TrendPointModel> trends;
   final double monthOverMonthChange;
+  
+  // Semester-wide forecast
+  final int? totalRemainingClasses;
+  final double? projectedOverallFinalPercentage;
+  final String? forecastStatus;
 
   AnalyticsOverviewModel({
     required this.semesterId,
@@ -98,6 +103,9 @@ class AnalyticsOverviewModel {
     required this.insights,
     required this.trends,
     required this.monthOverMonthChange,
+    this.totalRemainingClasses,
+    this.projectedOverallFinalPercentage,
+    this.forecastStatus,
   });
 
   factory AnalyticsOverviewModel.fromJson(Map<String, dynamic> json) {
@@ -132,6 +140,9 @@ class AnalyticsOverviewModel {
       insights: insList,
       trends: trList,
       monthOverMonthChange: (json['month_over_month_change'] as num?)?.toDouble() ?? 0.0,
+      totalRemainingClasses: json['total_remaining_classes'],
+      projectedOverallFinalPercentage: (json['projected_overall_final_percentage'] as num?)?.toDouble(),
+      forecastStatus: json['forecast_status'],
     );
   }
 }

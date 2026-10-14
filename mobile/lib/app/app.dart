@@ -4,7 +4,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../core/theme/app_theme.dart';
 import '../core/theme/app_colors.dart';
 import '../shared/widgets/bottom_nav_bar.dart';
-import '../shared/widgets/app_drawer.dart';
 import '../shared/widgets/persistent_top_bar.dart';
 import '../features/dashboard/dashboard_screen.dart';
 import '../features/today/today_screen.dart';
@@ -193,13 +192,7 @@ class _AttendHubAppState extends ConsumerState<AttendHubApp> {
   }
 
   void _handleBackNavigation(BuildContext context) {
-    // 1. Close drawer if open
-    if (_scaffoldKey.currentState?.isDrawerOpen ?? false) {
-      _scaffoldKey.currentState?.closeDrawer();
-      return;
-    }
-
-    // 2. Close secondary screen if open
+    // 1. Close secondary screen if open
     if (_secondaryRoute != null) {
       _setNavState(clearSecondary: true);
       return;
@@ -324,25 +317,6 @@ class _AttendHubAppState extends ConsumerState<AttendHubApp> {
             });
           }
 
-          // Incomplete Setup -> Guided 7-Step Academic Setup Wizard
-          if (setupState.status != null && !setupState.status!.setupComplete && _secondaryRoute != 'settings') {
-            return AcademicSetupScreen(
-              onComplete: () {
-                ref.read(setupProvider.notifier).checkStatus();
-                ref.invalidate(dashboardProvider);
-                ref.invalidate(selectedDateAttendanceProvider);
-                ref.invalidate(todayProvider);
-                ref.invalidate(subjectsProvider);
-                ref.invalidate(calendarProvider);
-                ref.invalidate(analyticsProvider);
-                ref.invalidate(holidaysProvider);
-                ref.invalidate(profileProvider);
-                ref.invalidate(semestersProvider);
-                _setNavState(clearSecondary: true);
-              },
-            );
-          }
-
           final semState = ref.watch(semestersProvider);
 
           // Authenticated App Shell with Persistent Top Controls and Floating Bottom Nav
@@ -356,94 +330,72 @@ class _AttendHubAppState extends ConsumerState<AttendHubApp> {
               key: _scaffoldKey,
               backgroundColor: AppColors.background,
               appBar: null,
-            drawer: AppDrawer(
-              onNavigate: (route) {
-                if (route == '/dashboard') {
-                  _setNavState(tabIndex: 0, clearSecondary: true);
-                } else if (route == '/routine' || route == '/today') {
-                  _setNavState(tabIndex: 1, clearSecondary: true);
-                } else if (route == '/analytics') {
-                  _setNavState(tabIndex: 2, clearSecondary: true);
-                } else if (route == '/subjects') {
-                  _setNavState(tabIndex: 3, clearSecondary: true);
-                } else if (route == '/calendar') {
-                  _setNavState(tabIndex: 2, clearSecondary: true);
-                } else if (route == '/holidays') {
-                  _setNavState(tabIndex: 4, clearSecondary: true);
-                } else if (route == '/profile') {
-                  _setNavState(secondaryRoute: 'profile');
-                } else if (route == '/settings') {
-                  _setNavState(secondaryRoute: 'settings');
-                } else if (route == '/setup') {
-                  _setNavState(secondaryRoute: 'setup');
-                } else if (route == '/help') {
-                  _showHelpSupport(context);
-                } else if (route == '/about') {
-                  _showAboutDialog(context);
-                }
-              },
-            ),
-            body: Stack(
-              children: [
-                // 1. Primary Tabs PageView - Always kept alive in background with isolated RepaintBoundary
-                RepaintBoundary(
-                  child: FocusScope(
-                    canRequestFocus: _secondaryRoute == null,
-                    child: IgnorePointer(
-                      ignoring: _secondaryRoute != null,
-                      child: PageView(
-                        controller: _pageController,
-                        physics: const NeverScrollableScrollPhysics(),
-                        onPageChanged: (index) {
-                          setState(() {
-                            _activeTabIndex = index;
-                          });
-                          LocalStorage().saveNavState(
-                            tabIndex: index,
-                            secondaryRoute: null,
-                          );
-                        },
-                        children: [
-                          KeepAliveWrapper(
-                            child: DashboardScreen(
-                              onOpenDrawer: () => _scaffoldKey.currentState?.openDrawer(),
-                              onNavigateToProfile: () => _setNavState(secondaryRoute: 'profile'),
-                              onNavigateToToday: () => _setNavState(tabIndex: 1, clearSecondary: true),
-                              onNavigateToAnalytics: () => _setNavState(tabIndex: 2, clearSecondary: true),
-                              onNavigateToCalendar: () => _setNavState(tabIndex: 2, clearSecondary: true),
-                              onOpenSetup: () => _setNavState(secondaryRoute: 'setup'),
+              drawer: null,
+              body: Stack(
+                children: [
+                  // 1. Primary Tabs PageView - Always kept alive in background with isolated RepaintBoundary
+                  RepaintBoundary(
+                    child: FocusScope(
+                      canRequestFocus: _secondaryRoute == null,
+                      child: IgnorePointer(
+                        ignoring: _secondaryRoute != null,
+                        child: PageView(
+                          controller: _pageController,
+                          physics: const NeverScrollableScrollPhysics(),
+                          onPageChanged: (index) {
+                            setState(() {
+                              _activeTabIndex = index;
+                            });
+                            LocalStorage().saveNavState(
+                              tabIndex: index,
+                              secondaryRoute: null,
+                            );
+                          },
+                          children: [
+                            KeepAliveWrapper(
+                              child: DashboardScreen(
+                                onOpenDrawer: () {},
+                                onNavigateToProfile: () => _setNavState(secondaryRoute: 'profile'),
+                                onNavigateToToday: () => _setNavState(tabIndex: 1, clearSecondary: true),
+                                onNavigateToAnalytics: () => _setNavState(tabIndex: 2, clearSecondary: true),
+                                onNavigateToCalendar: () => _setNavState(tabIndex: 2, clearSecondary: true),
+                                onOpenSetup: () => _setNavState(secondaryRoute: 'setup'),
+                              ),
                             ),
-                          ),
-                          KeepAliveWrapper(
-                            child: TodayScreen(
-                              onOpenDrawer: () => _scaffoldKey.currentState?.openDrawer(),
-                              onNavigateToProfile: () => _setNavState(secondaryRoute: 'profile'),
+                            KeepAliveWrapper(
+                              child: TodayScreen(
+                                onOpenDrawer: () {},
+                                onNavigateToProfile: () => _setNavState(secondaryRoute: 'profile'),
+                                onOpenSetup: () => _setNavState(secondaryRoute: 'setup'),
+                              ),
                             ),
-                          ),
-                          KeepAliveWrapper(
-                            child: AnalyticsScreen(
-                              onOpenDrawer: () => _scaffoldKey.currentState?.openDrawer(),
-                              onNavigateToProfile: () => _setNavState(secondaryRoute: 'profile'),
+                            KeepAliveWrapper(
+                              child: AnalyticsScreen(
+                                onOpenDrawer: () {},
+                                onNavigateToProfile: () => _setNavState(secondaryRoute: 'profile'),
+                                onOpenSetup: () => _setNavState(secondaryRoute: 'setup'),
+                              ),
                             ),
-                          ),
-                          KeepAliveWrapper(
-                            child: SubjectsScreen(
-                              onOpenDrawer: () => _scaffoldKey.currentState?.openDrawer(),
-                              onNavigateToProfile: () => _setNavState(secondaryRoute: 'profile'),
+                            KeepAliveWrapper(
+                              child: SubjectsScreen(
+                                onOpenDrawer: () {},
+                                onNavigateToProfile: () => _setNavState(secondaryRoute: 'profile'),
+                                onOpenSetup: () => _setNavState(secondaryRoute: 'setup'),
+                              ),
                             ),
-                          ),
-                          KeepAliveWrapper(
-                            child: HolidaysScreen(
-                              onOpenDrawer: () => _scaffoldKey.currentState?.openDrawer(),
-                              onNavigateToCalendar: () => _setNavState(tabIndex: 2, clearSecondary: true),
-                              onNavigateToProfile: () => _setNavState(secondaryRoute: 'profile'),
+                            KeepAliveWrapper(
+                              child: HolidaysScreen(
+                                onOpenDrawer: () {},
+                                onNavigateToCalendar: () => _setNavState(tabIndex: 2, clearSecondary: true),
+                                onNavigateToProfile: () => _setNavState(secondaryRoute: 'profile'),
+                                onOpenSetup: () => _setNavState(secondaryRoute: 'setup'),
+                              ),
                             ),
-                          ),
-                        ],
+                          ],
+                        ),
                       ),
                     ),
                   ),
-                ),
 
                 // 2. Secondary Screen Overlay with fast, fluid slide & fade transition
                 if (_secondaryRoute != null)
@@ -537,43 +489,38 @@ class _AttendHubAppState extends ConsumerState<AttendHubApp> {
   }
 
   String _getBarSubtitle(SemestersState semState) {
-    final label = semState.activeSemester?.label ?? 'Active Semester';
-    if (_secondaryRoute == 'analytics') return '$label • Insights';
-    if (_secondaryRoute == 'holidays') return '$label • Academic Calendar';
-    switch (_activeTabIndex) {
-      case 0:
-        return '$label • Overview';
-      case 1:
-        return '$label • Classes';
-      case 2:
-        return '$label • Insights';
-      case 3:
-        return '$label • Courses';
-      case 4:
-        return '$label • Holidays';
-      default:
-        return label;
-    }
+    return semState.activeSemester?.label ?? '1st Semester';
   }
 
   String _getAvatarInitial() {
     final prof = ref.watch(profileProvider).asData?.value;
-    if (prof != null && prof.fullName.isNotEmpty) {
-      return prof.fullName[0].toUpperCase();
+    if (prof != null && prof.fullName.trim().isNotEmpty) {
+      return prof.fullName.trim()[0].toUpperCase();
     }
-    return 'D';
+    final authUser = ref.watch(authProvider).user;
+    if (authUser != null) {
+      if (authUser.fullName.trim().isNotEmpty) {
+        return authUser.fullName.trim()[0].toUpperCase();
+      }
+      if (authUser.avatarInitial.trim().isNotEmpty) {
+        return authUser.avatarInitial.trim()[0].toUpperCase();
+      }
+    }
+    return 'S';
   }
 
   Widget _buildSecondaryScreen() {
     if (_secondaryRoute == 'analytics') {
       return AnalyticsScreen(
-        onOpenDrawer: () => _scaffoldKey.currentState?.openDrawer(),
+        onOpenDrawer: () {},
         onNavigateToProfile: () => _setNavState(secondaryRoute: 'profile'),
+        onOpenSetup: () => _setNavState(secondaryRoute: 'setup'),
       );
     } else if (_secondaryRoute == 'holidays') {
       return HolidaysScreen(
-        onOpenDrawer: () => _scaffoldKey.currentState?.openDrawer(),
+        onOpenDrawer: () {},
         onNavigateToProfile: () => _setNavState(secondaryRoute: 'profile'),
+        onOpenSetup: () => _setNavState(secondaryRoute: 'setup'),
         onNavigateToCalendar: () {
           _setNavState(tabIndex: 2, clearSecondary: true);
         },
@@ -742,171 +689,5 @@ class _AttendHubAppState extends ConsumerState<AttendHubApp> {
     );
   }
 
-  void _showHelpSupport(BuildContext context) {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (ctx) => Container(
-        padding: const EdgeInsets.fromLTRB(20, 24, 20, 32),
-        decoration: const BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.only(
-            topLeft: Radius.circular(24),
-            topRight: Radius.circular(24),
-          ),
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                const Row(
-                  children: [
-                    Icon(Icons.help_outline_rounded,
-                        color: AppColors.terracotta, size: 22),
-                    SizedBox(width: 8),
-                    Text(
-                      'Help & Support',
-                      style:
-                          TextStyle(fontWeight: FontWeight.w700, fontSize: 18),
-                    ),
-                  ],
-                ),
-                IconButton(
-                  icon: const Icon(Icons.close_rounded),
-                  onPressed: () => Navigator.pop(ctx),
-                ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            const Text(
-              'Frequently Asked Questions',
-              style: TextStyle(fontWeight: FontWeight.w700, fontSize: 14),
-            ),
-            const SizedBox(height: 8),
-            _buildFaqItem(
-              'How are Safe Absences calculated?',
-              'AttendiFy uses the pure formula: max(0, floor((Attended - 0.75 * Conducted) / 0.75)). If current attendance is below 75%, safe absences are strictly 0.',
-            ),
-            _buildFaqItem(
-              'What if a class is cancelled or not held?',
-              'Sessions marked NOT_HELD, CANCELLED, or scheduled on holidays never count against your attendance total.',
-            ),
-            _buildFaqItem(
-              'How do I switch semesters?',
-              'Open the side menu (hamburger icon) and tap the Semester card at the bottom to switch between all completed and active semesters.',
-            ),
-            const SizedBox(height: 16),
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: const Color(0xFFFBF6F3),
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: AppColors.divider),
-              ),
-              child: const Row(
-                children: [
-                  Icon(Icons.mail_outline_rounded,
-                      color: AppColors.inkMuted, size: 20),
-                  SizedBox(width: 10),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text('Need more assistance?',
-                            style: TextStyle(
-                                fontSize: 12, fontWeight: FontWeight.w600)),
-                        Text('Contact us at support@attendify.app',
-                            style: TextStyle(
-                                fontSize: 11, color: AppColors.inkMuted)),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
 
-  Widget _buildFaqItem(String question, String answer) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 6),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            question,
-            style: const TextStyle(
-                fontWeight: FontWeight.w600,
-                fontSize: 12,
-                color: AppColors.ink),
-          ),
-          const SizedBox(height: 2),
-          Text(
-            answer,
-            style: const TextStyle(
-                fontSize: 11, color: AppColors.inkMuted, height: 1.3),
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _showAboutDialog(BuildContext context) {
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: Row(
-          children: [
-            Container(
-              width: 36,
-              height: 36,
-              decoration: BoxDecoration(
-                color: AppColors.terracottaLight,
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: const Icon(Icons.school_rounded,
-                  color: AppColors.terracotta, size: 20),
-            ),
-            const SizedBox(width: 10),
-            const Text('About AttendiFy',
-                style: TextStyle(fontWeight: FontWeight.w700, fontSize: 18)),
-          ],
-        ),
-        content: const Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('AttendiFy v1.0.1',
-                style: TextStyle(fontWeight: FontWeight.w700, fontSize: 14)),
-            SizedBox(height: 4),
-            Text(
-              'Student-first attendance tracking and forecasting utility.',
-              style: TextStyle(fontSize: 12, color: AppColors.inkMuted),
-            ),
-            SizedBox(height: 12),
-            Text(
-              '• 75.0% Attendance Threshold Default\n• Independent Student Record\n• Semester & User Isolated\n• Warm Design System & Liquid Glass',
-              style: TextStyle(fontSize: 12, height: 1.5),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('Close',
-                style: TextStyle(
-                    color: AppColors.terracotta, fontWeight: FontWeight.w600)),
-          ),
-        ],
-      ),
-    );
-  }
 }

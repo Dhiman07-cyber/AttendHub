@@ -50,6 +50,20 @@ class AuthNotifier extends StateNotifier<AuthState> {
   final Ref? _ref;
   final ApiClient _client = ApiClient();
   final LocalStorage _storage = LocalStorage();
+  GoogleSignIn? _cachedGoogleSignIn;
+
+  GoogleSignIn _getGoogleSignIn() {
+    if (_cachedGoogleSignIn != null) return _cachedGoogleSignIn!;
+    final String? clientId = AppConfig.googleServerClientId.isNotEmpty
+        ? AppConfig.googleServerClientId
+        : null;
+    _cachedGoogleSignIn = GoogleSignIn(
+      clientId: kIsWeb ? clientId : null,
+      serverClientId: kIsWeb ? null : clientId,
+      scopes: const ['email', 'profile'],
+    );
+    return _cachedGoogleSignIn!;
+  }
 
   AuthNotifier([this._ref]) : super(AuthState(isAuthenticated: false, isLoading: true)) {
     checkInitialAuth();
@@ -264,16 +278,14 @@ class AuthNotifier extends StateNotifier<AuthState> {
       String? name = mockName;
 
       if (idToken == null && accessToken == null) {
-        final String? clientId = AppConfig.googleServerClientId.isNotEmpty
-            ? AppConfig.googleServerClientId
-            : null;
-
-        final GoogleSignIn googleSignIn = GoogleSignIn(
-          clientId: kIsWeb ? clientId : null,
-          serverClientId: clientId,
-          scopes: ['email', 'profile'],
-        );
-        final GoogleSignInAccount? account = await googleSignIn.signIn();
+        final GoogleSignIn googleSignIn = _getGoogleSignIn();
+        GoogleSignInAccount? account;
+        if (kIsWeb) {
+          try {
+            account = await googleSignIn.signInSilently();
+          } catch (_) {}
+        }
+        account ??= await googleSignIn.signIn();
         if (account == null) {
           state = state.copyWith(isLoading: false);
           return false;
@@ -365,6 +377,9 @@ class AuthNotifier extends StateNotifier<AuthState> {
   Future<void> logout() async {
     try {
       await _client.dio.post(ApiEndpoints.logout);
+    } catch (_) {}
+    try {
+      await _cachedGoogleSignIn?.signOut();
     } catch (_) {}
     await _storage.clearAuth();
     invalidateUserData();

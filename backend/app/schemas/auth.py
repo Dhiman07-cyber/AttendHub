@@ -10,7 +10,7 @@ class UserRegister(BaseModel):
     current_semester_number: Optional[int] = 1
     minimum_attendance: Optional[float] = 75.0
     personal_target: Optional[float] = 75.0
-    seed_demo_data: bool = True
+    seed_demo_data: bool = False
 
 class UserLogin(BaseModel):
     email: EmailStr

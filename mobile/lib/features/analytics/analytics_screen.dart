@@ -9,17 +9,19 @@ import '../../shared/widgets/liquid_glass_card.dart';
 import '../../shared/widgets/attendance_progress_ring.dart';
 import '../../shared/models/subject_model.dart';
 import '../../shared/models/analytics_model.dart';
-import '../calendar/providers/calendar_provider.dart';
+import '../setup/academic_setup_screen.dart';
 import 'providers/analytics_provider.dart';
 
 class AnalyticsScreen extends ConsumerStatefulWidget {
   final VoidCallback onOpenDrawer;
   final VoidCallback? onNavigateToProfile;
+  final VoidCallback? onOpenSetup;
 
   const AnalyticsScreen({
     super.key,
     required this.onOpenDrawer,
     this.onNavigateToProfile,
+    this.onOpenSetup,
   });
 
   @override
@@ -39,7 +41,7 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen> {
           LandscapeHeaderWidget(
             greeting: 'Analytics',
             userName: 'Attendance Insights',
-            semesterInfo: '${data.semesterLabel} • Overview',
+            semesterInfo: data.semesterLabel,
             showActions: false,
             topOffset: 76,
           ),
@@ -69,7 +71,9 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen> {
           const SizedBox(height: 14),
 
           // 3. Tab Content View
-          if (_activeTabIndex == 0) ...[
+          if (data.subjects.isEmpty) ...[
+            _buildEmptyTimetableCard(context),
+          ] else if (_activeTabIndex == 0) ...[
             _buildOverviewTab(data),
           ] else if (_activeTabIndex == 1) ...[
             _buildSubjectWiseTab(data),
@@ -79,6 +83,79 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen> {
             _buildTrendsTab(data),
           ],
         ],
+      ),
+    );
+  }
+
+  Widget _buildEmptyTimetableCard(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      child: LiquidGlassCard(
+        padding: const EdgeInsets.all(28),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 56,
+              height: 56,
+              decoration: BoxDecoration(
+                color: AppColors.terracotta.withValues(alpha: 0.12),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(
+                Icons.calendar_view_week_rounded,
+                color: AppColors.terracotta,
+                size: 28,
+              ),
+            ),
+            const SizedBox(height: 16),
+            const Text(
+              "Your timetable isn't set up yet.",
+              style: TextStyle(
+                fontWeight: FontWeight.w800,
+                fontSize: 16,
+                color: AppColors.ink,
+              ),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 6),
+            const Text(
+              'Configure your weekly routine and curriculum in Academic Setup to view attendance analytics.',
+              style: TextStyle(fontSize: 12, color: AppColors.inkMuted),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 20),
+            ElevatedButton.icon(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.terracotta,
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+              icon: const Icon(Icons.tune_rounded, size: 18),
+              label: const Text(
+                'Set Up Timetable',
+                style: TextStyle(fontWeight: FontWeight.w700),
+              ),
+              onPressed: () {
+                if (widget.onOpenSetup != null) {
+                  widget.onOpenSetup!();
+                } else {
+                  Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (_) => AcademicSetupScreen(
+                        onComplete: () => ref.refresh(analyticsProvider),
+                        onCancel: () => Navigator.of(context).pop(),
+                      ),
+                    ),
+                  );
+                }
+              },
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -441,55 +518,46 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen> {
                             ),
                           ],
                         ),
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 8, vertical: 6),
-                          decoration: BoxDecoration(
-                            color: (hasNoData
-                                    ? AppColors.sandLight
-                                    : isOnTrack
-                                        ? AppColors.sageLight
-                                        : AppColors.coralLight)
-                                .withValues(alpha: 0.6),
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          child: Row(
-                            children: [
-                              Icon(
-                                hasNoData
-                                    ? Icons.schedule_rounded
-                                    : isOnTrack
-                                        ? Icons.check_circle_rounded
-                                        : Icons.warning_rounded,
-                                size: 13,
-                                color: hasNoData
-                                    ? AppColors.inkMuted
-                                    : isOnTrack
-                                        ? AppColors.sageDark
-                                        : AppColors.coral,
-                              ),
-                              const SizedBox(width: 4),
-                              Expanded(
-                                child: Text(
-                                  hasNoData
-                                      ? 'Awaiting classes'
-                                      : isOnTrack
-                                          ? 'All subjects safe'
-                                          : 'Attention needed',
-                                  style: TextStyle(
-                                      fontSize: 9.5,
-                                      fontWeight: FontWeight.w700,
-                                      color: hasNoData
-                                          ? AppColors.inkMuted
-                                          : isOnTrack
-                                              ? AppColors.sageDark
-                                              : AppColors.coral),
-                                  overflow: TextOverflow.ellipsis,
+                        if (!hasNoData)
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 8, vertical: 6),
+                            decoration: BoxDecoration(
+                              color: (isOnTrack
+                                      ? AppColors.sageLight
+                                      : AppColors.coralLight)
+                                  .withValues(alpha: 0.6),
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: Row(
+                              children: [
+                                Icon(
+                                  isOnTrack
+                                      ? Icons.check_circle_rounded
+                                      : Icons.warning_rounded,
+                                  size: 13,
+                                  color: isOnTrack
+                                      ? AppColors.sageDark
+                                      : AppColors.coral,
                                 ),
-                              ),
-                            ],
+                                const SizedBox(width: 4),
+                                Expanded(
+                                  child: Text(
+                                    isOnTrack
+                                        ? 'All subjects safe'
+                                        : 'Attention needed',
+                                    style: TextStyle(
+                                        fontSize: 9.5,
+                                        fontWeight: FontWeight.w700,
+                                        color: isOnTrack
+                                            ? AppColors.sageDark
+                                            : AppColors.coral),
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ),
+                              ],
+                            ),
                           ),
-                        ),
                       ],
                     ),
                   ),
@@ -498,11 +566,6 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen> {
             ),
           ),
         ),
-
-        const SizedBox(height: 16),
-
-        // Academic Calendar (Month View) Integrated into Overview
-        _buildAnalyticsMonthCalendar(context, ref),
 
         const SizedBox(height: 16),
 
@@ -822,374 +885,6 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen> {
           ),
         ),
 
-      ],
-    );
-  }
-
-  Widget _buildAnalyticsMonthCalendar(BuildContext context, WidgetRef ref) {
-    final state = ref.watch(calendarProvider);
-
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16),
-      child: RepaintBoundary(
-        child: GestureDetector(
-          onHorizontalDragEnd: (details) {
-            if (details.primaryVelocity != null) {
-              if (details.primaryVelocity! < -150) {
-                ref.read(calendarProvider.notifier).navigateNext();
-              } else if (details.primaryVelocity! > 150) {
-                ref.read(calendarProvider.notifier).navigatePrevious();
-              }
-            }
-          },
-          child: LiquidGlassCard(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // Header with Month, Year, and Today Button
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    const Expanded(
-                      child: Row(
-                        children: [
-                          Icon(Icons.calendar_month_rounded,
-                              size: 18, color: AppColors.terracotta),
-                          SizedBox(width: 8),
-                          Expanded(
-                            child: Text(
-                              'Academic Calendar',
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: TextStyle(
-                                fontWeight: FontWeight.w700,
-                                fontSize: 14,
-                                color: AppColors.ink,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    GestureDetector(
-                      onTap: () => ref.read(calendarProvider.notifier).goToToday(),
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 10, vertical: 4),
-                        decoration: BoxDecoration(
-                          color: AppColors.terracotta.withValues(alpha: 0.1),
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(
-                            color: AppColors.terracotta.withValues(alpha: 0.25),
-                          ),
-                        ),
-                        child: const Text(
-                          'Today',
-                          style: TextStyle(
-                            fontSize: 11,
-                            fontWeight: FontWeight.w700,
-                            color: AppColors.terracotta,
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-
-                const SizedBox(height: 12),
-
-                // Month Switcher Row
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    IconButton(
-                      icon: const Icon(Icons.chevron_left_rounded),
-                      padding: EdgeInsets.zero,
-                      constraints: const BoxConstraints(),
-                      onPressed: () => ref
-                          .read(calendarProvider.notifier)
-                          .navigatePrevious(),
-                    ),
-                    Text(
-                      '${state.monthName} ${state.year}',
-                      style: const TextStyle(
-                        fontWeight: FontWeight.w700,
-                        fontSize: 15,
-                        color: AppColors.ink,
-                      ),
-                    ),
-                    IconButton(
-                      icon: const Icon(Icons.chevron_right_rounded),
-                      padding: EdgeInsets.zero,
-                      constraints: const BoxConstraints(),
-                      onPressed: () => ref
-                          .read(calendarProvider.notifier)
-                          .navigateNext(),
-                    ),
-                  ],
-                ),
-
-                const SizedBox(height: 10),
-
-                // Day of Week Header: Sun Mon Tue Wed Thu Fri Sat
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceAround,
-                  children: [
-                    'Sun',
-                    'Mon',
-                    'Tue',
-                    'Wed',
-                    'Thu',
-                    'Fri',
-                    'Sat'
-                  ].map((d) {
-                    return SizedBox(
-                      width: 36,
-                      child: Text(
-                        d,
-                        textAlign: TextAlign.center,
-                        style: const TextStyle(
-                            fontSize: 11,
-                            fontWeight: FontWeight.w600,
-                            color: AppColors.inkMuted),
-                      ),
-                    );
-                  }).toList(),
-                ),
-
-                const SizedBox(height: 8),
-
-                // Dynamic Days Grid
-                Builder(builder: (context) {
-                  final firstWeekday =
-                      DateTime(state.year, state.month, 1).weekday;
-                  final offset =
-                      firstWeekday == 7 ? 0 : firstWeekday;
-                  final daysInMonth =
-                      DateTime(state.year, state.month + 1, 0).day;
-                  final prevMonthDays =
-                      DateTime(state.year, state.month, 0).day;
-                  final totalSlots =
-                      ((offset + daysInMonth + 6) ~/ 7) * 7;
-
-                  return GridView.builder(
-                    shrinkWrap: true,
-                    physics: const NeverScrollableScrollPhysics(),
-                    itemCount: totalSlots,
-                    gridDelegate:
-                        const SliverGridDelegateWithFixedCrossAxisCount(
-                      crossAxisCount: 7,
-                      childAspectRatio: 0.95,
-                    ),
-                    itemBuilder: (context, index) {
-                      if (index < offset) {
-                        final prevDay =
-                            prevMonthDays - offset + index + 1;
-                        return Center(
-                          child: Text(
-                            '$prevDay',
-                            style: const TextStyle(
-                                color: Color(0xFFC7C2BE), fontSize: 13),
-                          ),
-                        );
-                      }
-
-                      final dayNum = index - offset + 1;
-                      if (dayNum > daysInMonth) {
-                        final nextDay = dayNum - daysInMonth;
-                        return Center(
-                          child: Text(
-                            '$nextDay',
-                            style: const TextStyle(
-                                color: Color(0xFFC7C2BE), fontSize: 13),
-                          ),
-                        );
-                      }
-
-                      final isSelected = dayNum == state.selectedDay;
-                      final dayMarker = state.days.firstWhere(
-                        (d) => d.day == dayNum,
-                        orElse: () => CalendarDayMarkerModel(
-                          date: '',
-                          day: dayNum,
-                          isCurrentMonth: true,
-                          isToday: false,
-                          hasClasses: false,
-                          hasHoliday: false,
-                          hasExam: false,
-                          hasOther: false,
-                        ),
-                      );
-
-                      return GestureDetector(
-                        onTap: () => ref
-                            .read(calendarProvider.notifier)
-                            .selectDay(dayNum),
-                        behavior: HitTestBehavior.opaque,
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Container(
-                              width: 30,
-                              height: 30,
-                              decoration: BoxDecoration(
-                                color: isSelected
-                                    ? AppColors.terracotta
-                                    : (dayMarker.isToday
-                                        ? AppColors.terracottaLight
-                                        : Colors.transparent),
-                                shape: BoxShape.circle,
-                              ),
-                              alignment: Alignment.center,
-                              child: Text(
-                                '$dayNum',
-                                style: TextStyle(
-                                  fontSize: 12.5,
-                                  fontWeight: isSelected || dayMarker.isToday
-                                      ? FontWeight.w700
-                                      : FontWeight.w500,
-                                  color: isSelected
-                                      ? Colors.white
-                                      : (dayMarker.isToday
-                                          ? AppColors.terracotta
-                                          : AppColors.ink),
-                                ),
-                              ),
-                            ),
-                            const SizedBox(height: 2),
-                            // Dots indicator
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                if (dayMarker.hasClasses)
-                                  Container(
-                                    width: 3.5,
-                                    height: 3.5,
-                                    margin: const EdgeInsets.symmetric(
-                                        horizontal: 1),
-                                    decoration: const BoxDecoration(
-                                        color: AppColors.sage,
-                                        shape: BoxShape.circle),
-                                  ),
-                                if (dayMarker.hasHoliday)
-                                  Container(
-                                    width: 3.5,
-                                    height: 3.5,
-                                    margin: const EdgeInsets.symmetric(
-                                        horizontal: 1),
-                                    decoration: const BoxDecoration(
-                                        color: AppColors.coral,
-                                        shape: BoxShape.circle),
-                                  ),
-                                if (dayMarker.hasExam)
-                                  Container(
-                                    width: 3.5,
-                                    height: 3.5,
-                                    margin: const EdgeInsets.symmetric(
-                                        horizontal: 1),
-                                    decoration: const BoxDecoration(
-                                        color: AppColors.ocean,
-                                        shape: BoxShape.circle),
-                                  ),
-                                if (dayMarker.hasOther)
-                                  Container(
-                                    width: 3.5,
-                                    height: 3.5,
-                                    margin: const EdgeInsets.symmetric(
-                                        horizontal: 1),
-                                    decoration: const BoxDecoration(
-                                        color: AppColors.amber,
-                                        shape: BoxShape.circle),
-                                  ),
-                              ],
-                            ),
-                          ],
-                        ),
-                      );
-                    },
-                  );
-                }),
-
-                const SizedBox(height: 10),
-                const Divider(color: AppColors.divider, height: 1),
-                const SizedBox(height: 8),
-
-                // Legend: Class, Holiday, Exam, Other
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceAround,
-                  children: [
-                    _buildCalendarLegendItem(AppColors.sage, 'Classes'),
-                    _buildCalendarLegendItem(AppColors.coral, 'Holiday'),
-                    _buildCalendarLegendItem(AppColors.ocean, 'Exam'),
-                    _buildCalendarLegendItem(AppColors.amber, 'Event'),
-                  ],
-                ),
-
-                // Selected Date Sessions Preview
-                if (state.selectedDateSessions.isNotEmpty ||
-                    state.selectedDateHolidays.isNotEmpty) ...[
-                  const SizedBox(height: 12),
-                  Container(
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFFBF8F5),
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: AppColors.divider),
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          '${state.selectedDay} ${state.monthName}: ${state.selectedDateSessions.length} classes scheduled',
-                          style: const TextStyle(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w700,
-                            color: AppColors.ink,
-                          ),
-                        ),
-                        if (state.selectedDateHolidays.isNotEmpty)
-                          Padding(
-                            padding: const EdgeInsets.only(top: 4),
-                            child: Text(
-                              'Holiday: ${state.selectedDateHolidays.map((h) => h.title).join(", ")}',
-                              style: const TextStyle(
-                                fontSize: 11,
-                                fontWeight: FontWeight.w600,
-                                color: AppColors.coral,
-                              ),
-                            ),
-                          ),
-                      ],
-                    ),
-                  ),
-                ],
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildCalendarLegendItem(Color color, String label) {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Container(
-          width: 7,
-          height: 7,
-          decoration: BoxDecoration(color: color, shape: BoxShape.circle),
-        ),
-        const SizedBox(width: 4),
-        Text(
-          label,
-          style: const TextStyle(
-              fontSize: 10,
-              fontWeight: FontWeight.w500,
-              color: AppColors.inkMuted),
-        ),
       ],
     );
   }

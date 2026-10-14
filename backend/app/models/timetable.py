@@ -4,6 +4,12 @@ from sqlalchemy import String, Integer, Date, ForeignKey
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.db.session import Base
 
+# Valid class_type values
+CLASS_TYPE_THEORY = "THEORY"
+CLASS_TYPE_LAB = "LAB"
+CLASS_TYPE_UNSPECIFIED = "UNSPECIFIED"
+VALID_CLASS_TYPES = {CLASS_TYPE_THEORY, CLASS_TYPE_LAB, CLASS_TYPE_UNSPECIFIED}
+
 class TimetableEntry(Base):
     __tablename__ = "timetable_entries"
     
@@ -17,6 +23,8 @@ class TimetableEntry(Base):
     room: Mapped[str] = mapped_column(String(50), nullable=True)
     effective_from: Mapped[date] = mapped_column(Date, nullable=True)
     effective_to: Mapped[date] = mapped_column(Date, nullable=True)
+    # THEORY, LAB, or UNSPECIFIED (NULL treated as UNSPECIFIED for legacy rows)
+    class_type: Mapped[str] = mapped_column(String(20), nullable=True, default=None)
     
     # Relationships
     semester = relationship("Semester", back_populates="timetable_entries")

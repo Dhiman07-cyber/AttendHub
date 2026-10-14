@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:ui';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import '../../core/storage/local_storage.dart';
@@ -8,6 +9,7 @@ import '../../core/theme/app_colors.dart';
 import '../../shared/widgets/app_button.dart';
 import '../../shared/widgets/app_text_field.dart';
 import '../../shared/widgets/liquid_glass_card.dart';
+import '../../shared/widgets/app_toast.dart';
 import '../auth/providers/auth_provider.dart';
 import '../dashboard/providers/dashboard_provider.dart';
 import '../today/providers/today_provider.dart';
@@ -50,8 +52,8 @@ class _AcademicSetupScreenState extends ConsumerState<AcademicSetupScreen> with 
 
   // Step 1: Academic Profile
   final _fullNameCtrl = TextEditingController();
-  final _universityCtrl = TextEditingController(text: 'Apex Technical University');
-  final _courseCtrl = TextEditingController(text: 'B.Tech Computer Science');
+  final _universityCtrl = TextEditingController();
+  final _courseCtrl = TextEditingController();
   final _studentIdCtrl = TextEditingController();
   int _durationYears = 4;
   int _sessionStart = 2024;
@@ -60,41 +62,17 @@ class _AcademicSetupScreenState extends ConsumerState<AcademicSetupScreen> with 
   // Step 2: Semester Context
   int _semesterNumber = 1;
   final _semesterLabelCtrl = TextEditingController(text: '1st Semester');
-  DateTime _startDate = DateTime.now().subtract(const Duration(days: 60));
-  DateTime _endDate = DateTime.now().add(const Duration(days: 60));
+  DateTime _startDate = DateTime.now();
+  DateTime _endDate = DateTime.now().add(const Duration(days: 180));
   double _minAttendance = 75.0;
   double _personalTarget = 75.0;
+  Set<int> _workingDays = {0, 1, 2, 3, 4, 5}; // Mon-Sat default
   Set<int> _availableSemesterNumbers = {};
   final Map<int, Map<String, dynamic>> _semesterCache = {};
   bool _isLoadingSemesterData = false;
 
   // Step 3: Subjects Drafts
-  final List<Map<String, dynamic>> _subjects = [
-    {
-      'name': 'Software Engineering',
-      'code': 'CS-501',
-      'faculty': 'Prof. A. Sharma',
-      'color': '#C96E5B',
-    },
-    {
-      'name': 'Operating Systems',
-      'code': 'CS-502',
-      'faculty': 'Prof. R. Das',
-      'color': '#D98786',
-    },
-    {
-      'name': 'Mathematics',
-      'code': 'MA-501',
-      'faculty': 'Prof. K. Deka',
-      'color': '#8F7BAE',
-    },
-    {
-      'name': 'Database Management',
-      'code': 'CS-503',
-      'faculty': 'Prof. M. Ali',
-      'color': '#72A68A',
-    },
-  ];
+  final List<Map<String, dynamic>> _subjects = [];
 
   // Subject form inputs
   final _newSubNameCtrl = TextEditingController();
@@ -107,9 +85,8 @@ class _AcademicSetupScreenState extends ConsumerState<AcademicSetupScreen> with 
   int _routineDayOfWeek = 0; // 0=Mon
   final _routineStartCtrl = TextEditingController(text: '09:00');
   final _routineEndCtrl = TextEditingController(text: '10:00');
-  final _routineRoomCtrl = TextEditingController(text: 'Room 101');
-
-  // Step 2 & 4: College Schedule Framework (Compulsory)
+  final _routineRoomCtrl = TextEditingController();
+  String? _quickAssignTool; // null = no tool selected, 'Break Time' = break, 'subject_name' = subject
   int _classStartHour = 9; // 09:00 AM (default)
   int _classEndHour = 16;  // 04:00 PM (default)
   String _startDay = 'Monday'; // Default Monday
@@ -284,12 +261,13 @@ class _AcademicSetupScreenState extends ConsumerState<AcademicSetupScreen> with 
   // Step 3: Color Palette
   String _selectedSubColor = '#C96E5B';
   static const List<String> _subjectColorPalette = [
-    '#C96E5B',
-    '#72A68A',
-    '#D9A35B',
-    '#4A8B9F',
-    '#8F7BAE',
-    '#D86A62',
+    '#C96E5B', // Terracotta
+    '#72A68A', // Sage
+    '#D9A35B', // Amber
+    '#4A8B9F', // Ocean
+    '#8F7BAE', // Lavender
+    '#2A9D8F', // Emerald Teal (refined from former duplicate coral)
+    '#9C4A6F', // Mulberry Rose (distinct 7th accent)
   ];
 
   // Step 6: Starting Attendance Drafts
@@ -343,6 +321,10 @@ class _AcademicSetupScreenState extends ConsumerState<AcademicSetupScreen> with 
     });
   }
 
+  void _onSubNameChanged() {
+    if (mounted) setState(() {});
+  }
+
   void _attachListeners() {
     _fullNameCtrl.addListener(_onFieldChanged);
     _universityCtrl.addListener(_onFieldChanged);
@@ -350,6 +332,7 @@ class _AcademicSetupScreenState extends ConsumerState<AcademicSetupScreen> with 
     _studentIdCtrl.addListener(_onFieldChanged);
     _semesterLabelCtrl.addListener(_onFieldChanged);
     _newSubNameCtrl.addListener(_onFieldChanged);
+    _newSubNameCtrl.addListener(_onSubNameChanged);
     _newSubCodeCtrl.addListener(_onFieldChanged);
     _newSubFacultyCtrl.addListener(_onFieldChanged);
     _routineStartCtrl.addListener(_onFieldChanged);
@@ -365,6 +348,7 @@ class _AcademicSetupScreenState extends ConsumerState<AcademicSetupScreen> with 
     _studentIdCtrl.removeListener(_onFieldChanged);
     _semesterLabelCtrl.removeListener(_onFieldChanged);
     _newSubNameCtrl.removeListener(_onFieldChanged);
+    _newSubNameCtrl.removeListener(_onSubNameChanged);
     _newSubCodeCtrl.removeListener(_onFieldChanged);
     _newSubFacultyCtrl.removeListener(_onFieldChanged);
     _routineStartCtrl.removeListener(_onFieldChanged);
@@ -388,7 +372,7 @@ class _AcademicSetupScreenState extends ConsumerState<AcademicSetupScreen> with 
       }
     }
     _attachListeners();
-    // Prefill full name from Auth, load draft, and fetch database setup state
+    // Prefill full name from Auth, fetch database baseline, and restore user's local draft
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       _isRestoringDraft = true;
       try {
@@ -398,11 +382,17 @@ class _AcademicSetupScreenState extends ConsumerState<AcademicSetupScreen> with 
             _cachedUserId = user.id;
           }
         } catch (_) {}
-        await _loadDraft();
+
+        // 1. Fetch server baseline state first
         final auth = ref.read(authProvider);
         if (auth.isAuthenticated && auth.user != null) {
           await _fetchDatabaseSetupData(targetSemester: widget.initialSemesterNumber);
         }
+
+        // 2. Load uncommitted draft from local storage AFTER database fetch
+        // so that in-progress subjects, timetable, and steps take precedence over DB defaults!
+        await _loadDraft();
+
         if (mounted) {
           try {
             final user = ref.read(authProvider).user;
@@ -428,7 +418,7 @@ class _AcademicSetupScreenState extends ConsumerState<AcademicSetupScreen> with 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.paused || state == AppLifecycleState.inactive) {
-      _saveDraft();
+      _saveDraft(immediate: true);
     }
   }
 
@@ -439,7 +429,7 @@ class _AcademicSetupScreenState extends ConsumerState<AcademicSetupScreen> with 
     _debounceSaveTimer?.cancel();
     _draftDebounceTimer?.cancel();
     if (!_isCommitted) {
-      _executeSaveDraft();
+      _executeSaveDraft(allowUnmounted: true);
     }
     _pageController.dispose();
     _fullNameCtrl.dispose();
@@ -530,8 +520,12 @@ class _AcademicSetupScreenState extends ConsumerState<AcademicSetupScreen> with 
       // Step 5
       'holidays': _holidays.map((h) => {
         'title': h['title'],
-        'start_date': (h['start_date'] as DateTime).toIso8601String(),
-        'end_date': (h['end_date'] as DateTime).toIso8601String(),
+        'start_date': h['start_date'] is DateTime
+            ? (h['start_date'] as DateTime).toIso8601String()
+            : (h['start_date']?.toString() ?? DateTime.now().toIso8601String()),
+        'end_date': h['end_date'] is DateTime
+            ? (h['end_date'] as DateTime).toIso8601String()
+            : (h['end_date']?.toString() ?? DateTime.now().toIso8601String()),
         'category': h['category'],
         'notes': h['notes'],
       }).toList(),
@@ -651,7 +645,7 @@ class _AcademicSetupScreenState extends ConsumerState<AcademicSetupScreen> with 
         if (item is Map) {
           _timetableEntries.add({
             'subject_name': item['subject_name'] ?? '',
-            'day_of_week': item['day_of_week'] is int ? item['day_of_week'] as int : 0,
+            'day_of_week': (item['day_of_week'] as num?)?.toInt() ?? 0,
             'start_time': item['start_time'] ?? '09:00',
             'end_time': item['end_time'] ?? '10:00',
             'room': item['room'] ?? '',
@@ -773,8 +767,8 @@ class _AcademicSetupScreenState extends ConsumerState<AcademicSetupScreen> with 
     });
   }
 
-  Future<void> _executeSaveDraft() async {
-    if (_isCommitted || !mounted) return;
+  Future<void> _executeSaveDraft({bool allowUnmounted = false}) async {
+    if (_isCommitted || (!mounted && !allowUnmounted)) return;
     try {
       final userId = _getUserId();
       final draft = _serializeDraft();
@@ -1036,6 +1030,53 @@ class _AcademicSetupScreenState extends ConsumerState<AcademicSetupScreen> with 
     return _subjects.first['name'] as String;
   }
 
+  void _addSubject() {
+    final name = _newSubNameCtrl.text.trim();
+    if (name.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Please enter a subject name first.'),
+          backgroundColor: AppColors.coral,
+          behavior: SnackBarBehavior.floating,
+          duration: Duration(seconds: 2),
+        ),
+      );
+      return;
+    }
+
+    final isDuplicate = _subjects.any(
+      (s) => (s['name'] as String).toLowerCase() == name.toLowerCase(),
+    );
+    if (isDuplicate) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Subject "$name" is already added.'),
+          backgroundColor: AppColors.amber,
+          behavior: SnackBarBehavior.floating,
+          duration: const Duration(seconds: 2),
+        ),
+      );
+      return;
+    }
+
+    setState(() {
+      _subjects.add({
+        'name': name,
+        'code': _newSubCodeCtrl.text.trim().isEmpty ? null : _newSubCodeCtrl.text.trim(),
+        'faculty': _newSubFacultyCtrl.text.trim().isEmpty ? null : _newSubFacultyCtrl.text.trim(),
+        'color': _selectedSubColor,
+      });
+      _selectedRoutineSubject ??= name;
+      _newSubNameCtrl.clear();
+      _newSubCodeCtrl.clear();
+      _newSubFacultyCtrl.clear();
+    });
+
+    FocusScope.of(context).unfocus();
+    _saveDraft(immediate: true);
+    HapticFeedback.lightImpact();
+  }
+
   void _deleteSubject(int idx) {
     if (idx < 0 || idx >= _subjects.length) return;
     setState(() {
@@ -1054,7 +1095,7 @@ class _AcademicSetupScreenState extends ConsumerState<AcademicSetupScreen> with 
         _selectedRoutineSubject = _subjects.isNotEmpty ? _subjects.first['name'] as String : null;
       }
     });
-    _saveDraft();
+    _saveDraft(immediate: true);
   }
 
   void _goToStep(int targetStep) {
@@ -1094,46 +1135,53 @@ class _AcademicSetupScreenState extends ConsumerState<AcademicSetupScreen> with 
       _errorMessage = null;
     });
 
+    final uni = _universityCtrl.text.trim();
+    final course = _courseCtrl.text.trim();
+    final semLabel = _semesterLabelCtrl.text.trim();
+
     final payload = {
-      'university_name': _universityCtrl.text.trim(),
-      'course_name': _courseCtrl.text.trim(),
+      'university_name': uni.isEmpty ? 'Not specified' : uni,
+      'course_name': course.isEmpty ? 'Not specified' : course,
       'full_name': _fullNameCtrl.text.trim().isEmpty ? null : _fullNameCtrl.text.trim(),
       'student_id_number': _studentIdCtrl.text.trim().isEmpty ? null : _studentIdCtrl.text.trim(),
       'academic_duration_years': _durationYears,
       'academic_session_start': _sessionStart,
       'academic_session_end': _sessionEnd,
       'semester_number': _semesterNumber,
-      'semester_label': _semesterLabelCtrl.text.trim(),
+      'semester_label': semLabel.isEmpty ? _formatSemesterLabel(_semesterNumber) : semLabel,
       'start_date': DateFormat('yyyy-MM-dd').format(_startDate),
       'end_date': DateFormat('yyyy-MM-dd').format(_endDate),
       'minimum_attendance': _minAttendance,
       'personal_target': _personalTarget,
       'low_attendance_alert': 70.0,
       'subjects': _subjects.map((s) => {
-        'name': s['name'],
-        'code': s['code'],
-        'faculty_name': s['faculty'],
+        'name': (s['name'] as String).trim(),
+        'code': (s['code'] as String?)?.trim().isEmpty == true ? null : (s['code'] as String?)?.trim(),
+        'faculty_name': (s['faculty'] as String?)?.trim().isEmpty == true ? null : (s['faculty'] as String?)?.trim(),
         'color': s['color'] ?? '#C96E5B',
       }).toList(),
       'timetable_entries': _timetableEntries
-          .where((t) => _subjects.any((s) => s['name'] == t['subject_name']))
+          .where((t) =>
+              t['subject_name'] == 'Break Time' ||
+              t['subject_name'] == 'Break' ||
+              _subjects.any((s) => s['name'] == t['subject_name']))
           .map((t) => {
             'subject_name': t['subject_name'],
-            'day_of_week': t['day_of_week'],
+            'day_of_week': t['day_of_week'] is int ? t['day_of_week'] : int.tryParse(t['day_of_week'].toString()) ?? 0,
             'start_time': t['start_time'],
             'end_time': t['end_time'],
             'room': t['room'],
             'faculty_name': t['faculty_name'],
           }).toList(),
       'holidays': _holidays.map((h) => {
-        'title': h['title'],
+        'title': (h['title'] as String).trim(),
         'start_date': DateFormat('yyyy-MM-dd').format(h['start_date'] as DateTime),
         'end_date': DateFormat('yyyy-MM-dd').format(h['end_date'] as DateTime),
         'category': (h['category'] == 'Break') ? 'Semester Break' : (h['category'] ?? 'University Holiday'),
         'notes': h['notes'],
       }).toList(),
       'starting_attendance': _subjects.map((s) {
-        final name = s['name'] as String;
+        final name = (s['name'] as String).trim();
         return {
           'subject_name': name,
           'attended_count': _startingAttended[name] ?? 0,
@@ -1183,9 +1231,10 @@ class _AcademicSetupScreenState extends ConsumerState<AcademicSetupScreen> with 
         body: GestureDetector(
           behavior: HitTestBehavior.translucent,
           onTap: () {
-            final currentFocus = FocusScope.of(context);
-            if (!currentFocus.hasPrimaryFocus && currentFocus.focusedChild != null) {
-              currentFocus.unfocus();
+            if (!mounted) return;
+            final primaryFocus = FocusManager.instance.primaryFocus;
+            if (primaryFocus != null && primaryFocus.hasFocus) {
+              primaryFocus.unfocus();
               _saveDraft();
             }
           },
@@ -1326,22 +1375,29 @@ class _AcademicSetupScreenState extends ConsumerState<AcademicSetupScreen> with 
                   overflow: TextOverflow.ellipsis,
                 ),
               ),
-              if (widget.onCancel != null)
-                TextButton(
-                  onPressed: widget.onCancel,
-                  style: TextButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(horizontal: 6),
-                    minimumSize: const Size(36, 32),
-                  ),
-                  child: const Text(
-                    'Cancel',
-                    style: TextStyle(
-                      color: AppColors.inkMuted,
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600,
-                    ),
+              TextButton(
+                key: const Key('academic_setup_cancel_button'),
+                onPressed: () {
+                  if (widget.onCancel != null) {
+                    widget.onCancel!();
+                  } else if (Navigator.canPop(context)) {
+                    Navigator.pop(context);
+                  }
+                },
+                style: TextButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  minimumSize: const Size(44, 32),
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                ),
+                child: const Text(
+                  'Cancel',
+                  style: TextStyle(
+                    color: AppColors.inkMuted,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
                   ),
                 ),
+              ),
             ],
           ),
           const SizedBox(height: 10),
@@ -1416,6 +1472,36 @@ class _AcademicSetupScreenState extends ConsumerState<AcademicSetupScreen> with 
 
   Widget _buildBottomControls() {
     final maxStep = _isReturningUser ? 5 : 6;
+    final isSubjectsStep = _isReturningUser ? _currentStep == 1 : _currentStep == 2;
+    final keyboardVisible = MediaQuery.of(context).viewInsets.bottom > 0;
+
+    // When on Step 3 (Subjects) and mobile keyboard is visible,
+    // swap the primary action above the keyboard to "Add Subject"
+    // so tapping the floating action button adds the subject as expected.
+    if (isSubjectsStep && keyboardVisible) {
+      return Container(
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+        decoration: const BoxDecoration(
+          color: AppColors.surface,
+          border: Border(top: BorderSide(color: AppColors.divider)),
+          boxShadow: [
+            BoxShadow(
+              color: AppColors.shadowWarm,
+              blurRadius: 8,
+              offset: Offset(0, -2),
+            ),
+          ],
+        ),
+        child: AppButton(
+          key: const Key('bottom_add_subject_button'),
+          label: 'Add Subject',
+          icon: Icons.add_circle_outline_rounded,
+          showArrow: false,
+          onPressed: _addSubject,
+        ),
+      );
+    }
+
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
       decoration: const BoxDecoration(
@@ -1435,8 +1521,8 @@ class _AcademicSetupScreenState extends ConsumerState<AcademicSetupScreen> with 
   // STEP 1: GLOBAL PROFILE
   Widget _buildStep1Profile() {
     return SingleChildScrollView(
-      physics: const BouncingScrollPhysics(),
-      keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+      physics: const ClampingScrollPhysics(),
+      keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.manual,
       padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1754,12 +1840,12 @@ class _AcademicSetupScreenState extends ConsumerState<AcademicSetupScreen> with 
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            'Term Dates (College Start & End)',
+                            'Expected Semester Timings',
                             style: TextStyle(fontWeight: FontWeight.w700, fontSize: 14, color: AppColors.ink),
                           ),
                           SizedBox(height: 2),
                           Text(
-                            'Helps calculate attendance forecasts, trends, and milestone predictions accurately.',
+                            'Specify college start and end dates to calculate semester progress and forecasts accurately.',
                             style: TextStyle(fontSize: 11, color: AppColors.inkMuted),
                           ),
                         ],
@@ -2386,10 +2472,7 @@ class _AcademicSetupScreenState extends ConsumerState<AcademicSetupScreen> with 
                     FocusScope.of(context).unfocus();
                     _saveDraft();
                   },
-                  onEditingComplete: () {
-                    FocusScope.of(context).unfocus();
-                    _saveDraft();
-                  },
+                  onEditingComplete: _addSubject,
                 ),
                 const SizedBox(height: 12),
 
@@ -2405,10 +2488,7 @@ class _AcademicSetupScreenState extends ConsumerState<AcademicSetupScreen> with 
                           FocusScope.of(context).unfocus();
                           _saveDraft();
                         },
-                        onEditingComplete: () {
-                          FocusScope.of(context).unfocus();
-                          _saveDraft();
-                        },
+                        onEditingComplete: _addSubject,
                       ),
                     ),
                     const SizedBox(width: 12),
@@ -2422,10 +2502,7 @@ class _AcademicSetupScreenState extends ConsumerState<AcademicSetupScreen> with 
                           FocusScope.of(context).unfocus();
                           _saveDraft();
                         },
-                        onEditingComplete: () {
-                          FocusScope.of(context).unfocus();
-                          _saveDraft();
-                        },
+                        onEditingComplete: _addSubject,
                       ),
                     ),
                   ],
@@ -2436,96 +2513,156 @@ class _AcademicSetupScreenState extends ConsumerState<AcademicSetupScreen> with 
                 Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text('Color Accent', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: AppColors.ink)),
-                    const SizedBox(height: 8),
-                    Row(
-                      children: _subjectColorPalette.map((colorHex) {
-                        final isSelected = _selectedSubColor == colorHex;
-                        final colorVal = _parseColor(colorHex);
-                        return Padding(
-                          padding: const EdgeInsets.only(right: 10),
-                          child: InkWell(
-                            onTap: () => setState(() => _selectedSubColor = colorHex),
-                            borderRadius: BorderRadius.circular(16),
-                            child: Container(
-                              width: 30,
-                              height: 30,
-                              decoration: BoxDecoration(
-                                color: colorVal,
-                                shape: BoxShape.circle,
-                                border: Border.all(
-                                  color: isSelected ? AppColors.ink : Colors.transparent,
-                                  width: 2.5,
-                                ),
-                                boxShadow: [
-                                  BoxShadow(
-                                    color: colorVal.withValues(alpha: 0.35),
-                                    blurRadius: 4,
-                                    offset: const Offset(0, 2),
-                                  ),
-                                ],
-                              ),
-                              child: isSelected
-                                  ? const Icon(Icons.check_rounded, size: 16, color: Colors.white)
-                                  : null,
-                            ),
+                    const Row(
+                      children: [
+                        Text('Color Accent', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: AppColors.ink)),
+                        SizedBox(width: 6),
+                        Expanded(
+                          child: Text(
+                            '• Tap to select identity tint',
+                            style: TextStyle(fontSize: 11, color: AppColors.inkMuted),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
                           ),
-                        );
-                      }).toList(),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 10),
+                    SingleChildScrollView(
+                      scrollDirection: Axis.horizontal,
+                      physics: const BouncingScrollPhysics(),
+                      child: Row(
+                        children: _subjectColorPalette.map((colorHex) {
+                          final isSelected = _selectedSubColor == colorHex;
+                          final colorVal = _parseColor(colorHex);
+                          return Padding(
+                            padding: const EdgeInsets.only(right: 12),
+                            child: InkWell(
+                              onTap: () {
+                                HapticFeedback.selectionClick();
+                                setState(() => _selectedSubColor = colorHex);
+                              },
+                              borderRadius: BorderRadius.circular(18),
+                              child: AnimatedContainer(
+                                duration: const Duration(milliseconds: 180),
+                                width: 34,
+                                height: 34,
+                                decoration: BoxDecoration(
+                                  color: colorVal,
+                                  shape: BoxShape.circle,
+                                  border: Border.all(
+                                    color: isSelected ? AppColors.ink : Colors.white,
+                                    width: isSelected ? 2.5 : 1.5,
+                                  ),
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: colorVal.withValues(alpha: isSelected ? 0.45 : 0.22),
+                                      blurRadius: isSelected ? 6 : 4,
+                                      offset: const Offset(0, 2),
+                                    ),
+                                  ],
+                                ),
+                                child: isSelected
+                                    ? const Icon(Icons.check_rounded, size: 18, color: Colors.white)
+                                    : null,
+                              ),
+                            ),
+                          );
+                        }).toList(),
+                      ),
                     ),
                   ],
                 ),
-                const SizedBox(height: 16),
+                const SizedBox(height: 18),
 
-                Align(
-                  alignment: Alignment.centerRight,
-                  child: ElevatedButton.icon(
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: AppColors.terracotta,
-                      foregroundColor: Colors.white,
-                      elevation: 0,
-                      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 11),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                // High-impact Add Subject button
+                SizedBox(
+                  width: double.infinity,
+                  height: 48,
+                  child: DecoratedBox(
+                    decoration: BoxDecoration(
+                      gradient: const LinearGradient(
+                        colors: [
+                          Color(0xFFE26B55),
+                          Color(0xFFCE5944),
+                        ],
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                      ),
+                      borderRadius: BorderRadius.circular(12),
+                      boxShadow: [
+                        BoxShadow(
+                          color: AppColors.terracotta.withValues(alpha: 0.32),
+                          blurRadius: 10,
+                          offset: const Offset(0, 3),
+                        ),
+                      ],
                     ),
-                    icon: const Icon(Icons.add_rounded, size: 18),
-                    label: const Text('Add Subject', style: TextStyle(fontWeight: FontWeight.w700)),
-                    onPressed: () {
-                      final name = _newSubNameCtrl.text.trim();
-                      if (name.isNotEmpty) {
-                        final isDuplicate = _subjects.any(
-                          (s) => (s['name'] as String).toLowerCase() == name.toLowerCase(),
-                        );
-                        if (isDuplicate) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(
-                              content: Text('Subject "$name" is already added.'),
-                              backgroundColor: AppColors.amber,
-                            ),
-                          );
-                          return;
-                        }
-
-                        setState(() {
-                          _subjects.add({
-                            'name': name,
-                            'code': _newSubCodeCtrl.text.trim().isEmpty ? null : _newSubCodeCtrl.text.trim(),
-                            'faculty': _newSubFacultyCtrl.text.trim().isEmpty ? null : _newSubFacultyCtrl.text.trim(),
-                            'color': _selectedSubColor,
-                          });
-                          _selectedRoutineSubject ??= name;
-                          _newSubNameCtrl.clear();
-                          _newSubCodeCtrl.clear();
-                          _newSubFacultyCtrl.clear();
-                        });
-                        _saveDraft();
-                      }
-                    },
+                    child: Material(
+                      color: Colors.transparent,
+                      child: InkWell(
+                        onTap: _addSubject,
+                        borderRadius: BorderRadius.circular(12),
+                        child: const Center(
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(Icons.add_circle_outline_rounded, color: Colors.white, size: 19),
+                              SizedBox(width: 8),
+                              Text(
+                                'Add Subject',
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 14.5,
+                                  fontWeight: FontWeight.w700,
+                                  letterSpacing: 0.2,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
                   ),
                 ),
               ],
             ),
           ),
-          const SizedBox(height: 20),
+          const SizedBox(height: 22),
+
+          // Enrolled Subjects Section Header
+          if (_subjects.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 12, top: 4),
+              child: Row(
+                children: [
+                  const Text(
+                    'Enrolled Subjects',
+                    style: TextStyle(
+                      fontWeight: FontWeight.w700,
+                      fontSize: 15,
+                      color: AppColors.ink,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: AppColors.terracotta.withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Text(
+                      '${_subjects.length}',
+                      style: const TextStyle(
+                        fontSize: 11.5,
+                        fontWeight: FontWeight.w700,
+                        color: AppColors.terracotta,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
 
           // List of added subjects
           if (_subjects.isEmpty)
@@ -2559,13 +2696,21 @@ class _AcademicSetupScreenState extends ConsumerState<AcademicSetupScreen> with 
               final faculty = sub['faculty'] as String?;
 
               return Container(
-                margin: const EdgeInsets.only(bottom: 10),
+                margin: const EdgeInsets.only(bottom: 12),
                 decoration: BoxDecoration(
                   color: AppColors.surface,
-                  borderRadius: BorderRadius.circular(14),
-                  border: Border.all(color: AppColors.divider),
-                  boxShadow: const [
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(
+                    color: subColor.withValues(alpha: 0.25),
+                    width: 1.2,
+                  ),
+                  boxShadow: [
                     BoxShadow(
+                      color: subColor.withValues(alpha: 0.08),
+                      blurRadius: 10,
+                      offset: const Offset(0, 3),
+                    ),
+                    const BoxShadow(
                       color: AppColors.shadowWarm,
                       blurRadius: 4,
                       offset: Offset(0, 1),
@@ -2577,24 +2722,45 @@ class _AcademicSetupScreenState extends ConsumerState<AcademicSetupScreen> with 
                   children: [
                     Positioned(
                       left: 0,
-                      top: 0,
-                      bottom: 0,
+                      top: 10,
+                      bottom: 10,
                       width: 4.5,
-                      child: Container(color: subColor),
+                      child: Container(
+                        decoration: BoxDecoration(
+                          color: subColor,
+                          borderRadius: const BorderRadius.only(
+                            topRight: Radius.circular(4),
+                            bottomRight: Radius.circular(4),
+                          ),
+                        ),
+                      ),
                     ),
                     Padding(
-                      padding: const EdgeInsets.fromLTRB(16, 12, 10, 12),
+                      padding: const EdgeInsets.fromLTRB(16, 12, 12, 12),
                       child: Row(
                         crossAxisAlignment: CrossAxisAlignment.center,
                         children: [
                           Container(
-                            width: 38,
-                            height: 38,
+                            width: 42,
+                            height: 42,
                             decoration: BoxDecoration(
-                              color: subColor.withValues(alpha: 0.12),
-                              borderRadius: BorderRadius.circular(10),
+                              gradient: LinearGradient(
+                                colors: [
+                                  subColor.withValues(alpha: 0.20),
+                                  subColor.withValues(alpha: 0.08),
+                                ],
+                                begin: Alignment.topLeft,
+                                end: Alignment.bottomRight,
+                              ),
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(
+                                color: subColor.withValues(alpha: 0.28),
+                                width: 1,
+                              ),
                             ),
-                            child: Icon(Icons.school_rounded, color: subColor, size: 18),
+                            child: Center(
+                              child: Icon(Icons.menu_book_rounded, color: subColor, size: 20),
+                            ),
                           ),
                           const SizedBox(width: 12),
                           Expanded(
@@ -2603,7 +2769,12 @@ class _AcademicSetupScreenState extends ConsumerState<AcademicSetupScreen> with 
                               children: [
                                 Text(
                                   sub['name'] as String,
-                                  style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14.5, color: AppColors.ink),
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.w700,
+                                    fontSize: 15,
+                                    color: AppColors.ink,
+                                    letterSpacing: -0.2,
+                                  ),
                                   maxLines: 1,
                                   overflow: TextOverflow.ellipsis,
                                 ),
@@ -2614,19 +2785,32 @@ class _AcademicSetupScreenState extends ConsumerState<AcademicSetupScreen> with 
                                   children: [
                                     if (code != null && code.trim().isNotEmpty)
                                       Container(
-                                        padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                                        padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2.5),
                                         decoration: BoxDecoration(
                                           color: subColor.withValues(alpha: 0.12),
                                           borderRadius: BorderRadius.circular(6),
+                                          border: Border.all(color: subColor.withValues(alpha: 0.24)),
                                         ),
-                                        child: Text(
-                                          code.trim(),
-                                          style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.w700, color: subColor),
+                                        child: Row(
+                                          mainAxisSize: MainAxisSize.min,
+                                          children: [
+                                            Icon(Icons.tag_rounded, size: 10.5, color: subColor),
+                                            const SizedBox(width: 3),
+                                            Text(
+                                              code.trim().toUpperCase(),
+                                              style: TextStyle(
+                                                fontSize: 10.5,
+                                                fontWeight: FontWeight.w700,
+                                                color: subColor,
+                                                letterSpacing: 0.3,
+                                              ),
+                                            ),
+                                          ],
                                         ),
                                       ),
                                     if (faculty != null && faculty.trim().isNotEmpty)
                                       Container(
-                                        padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                                        padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2.5),
                                         decoration: BoxDecoration(
                                           color: AppColors.surfaceAlt,
                                           borderRadius: BorderRadius.circular(6),
@@ -2639,9 +2823,29 @@ class _AcademicSetupScreenState extends ConsumerState<AcademicSetupScreen> with 
                                             const SizedBox(width: 3),
                                             Text(
                                               faculty.trim(),
-                                              style: const TextStyle(fontSize: 10.5, fontWeight: FontWeight.w500, color: AppColors.ink),
+                                              style: const TextStyle(
+                                                fontSize: 10.5,
+                                                fontWeight: FontWeight.w600,
+                                                color: AppColors.inkSecondary,
+                                              ),
                                             ),
                                           ],
+                                        ),
+                                      ),
+                                    if ((code == null || code.trim().isEmpty) && (faculty == null || faculty.trim().isEmpty))
+                                      Container(
+                                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                        decoration: BoxDecoration(
+                                          color: AppColors.sandLight.withValues(alpha: 0.6),
+                                          borderRadius: BorderRadius.circular(6),
+                                        ),
+                                        child: Text(
+                                          'Subject #${idx + 1}',
+                                          style: const TextStyle(
+                                            fontSize: 10,
+                                            fontWeight: FontWeight.w600,
+                                            color: AppColors.inkMuted,
+                                          ),
                                         ),
                                       ),
                                   ],
@@ -2649,10 +2853,35 @@ class _AcademicSetupScreenState extends ConsumerState<AcademicSetupScreen> with 
                               ],
                             ),
                           ),
-                          IconButton(
-                            icon: const Icon(Icons.delete_outline_rounded, color: AppColors.coral, size: 20),
-                            onPressed: () => _deleteSubject(idx),
-                            tooltip: 'Delete Subject',
+                          const SizedBox(width: 8),
+                          Material(
+                            color: Colors.transparent,
+                            child: InkWell(
+                              borderRadius: BorderRadius.circular(10),
+                              onTap: () {
+                                HapticFeedback.lightImpact();
+                                _deleteSubject(idx);
+                              },
+                              child: Container(
+                                width: 36,
+                                height: 36,
+                                decoration: BoxDecoration(
+                                  color: AppColors.coralLight.withValues(alpha: 0.7),
+                                  borderRadius: BorderRadius.circular(10),
+                                  border: Border.all(
+                                    color: AppColors.coral.withValues(alpha: 0.25),
+                                    width: 1,
+                                  ),
+                                ),
+                                child: const Center(
+                                  child: Icon(
+                                    Icons.delete_outline_rounded,
+                                    color: AppColors.coral,
+                                    size: 19,
+                                  ),
+                                ),
+                              ),
+                            ),
                           ),
                         ],
                       ),
@@ -2664,6 +2893,166 @@ class _AcademicSetupScreenState extends ConsumerState<AcademicSetupScreen> with 
         ],
       ),
     );
+  }
+
+  Widget _buildQuickToolChip({
+    required String label,
+    IconData? icon,
+    required Color color,
+    required bool isSelected,
+    required VoidCallback onTap,
+  }) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        key: Key('quick_tool_$label'),
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(10),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+          decoration: BoxDecoration(
+            color: isSelected ? color.withValues(alpha: 0.18) : AppColors.surfaceAlt,
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(
+              color: isSelected ? color : AppColors.divider,
+              width: isSelected ? 1.5 : 1.0,
+            ),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (icon != null) ...[
+                Icon(icon, size: 14, color: isSelected ? color : AppColors.inkMuted),
+                const SizedBox(width: 5),
+              ] else ...[
+                Container(
+                  width: 8,
+                  height: 8,
+                  decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+                ),
+                const SizedBox(width: 6),
+              ],
+              Text(
+                label,
+                style: TextStyle(
+                  fontSize: 11.5,
+                  fontWeight: isSelected ? FontWeight.w800 : FontWeight.w600,
+                  color: isSelected ? color : AppColors.ink,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Map<String, dynamic>? _findConflictingEntry({
+    required int dayOfWeek,
+    required int startHour,
+    required int endHour,
+    Map<String, dynamic>? ignoreEntry,
+  }) {
+    for (final entry in _timetableEntries) {
+      if (identical(entry, ignoreEntry)) continue;
+      if (entry['day_of_week'] != dayOfWeek) continue;
+
+      final eStart = _parseHour(entry['start_time'] as String?);
+      final eEnd = _parseHour(entry['end_time'] as String?);
+      if (eStart == null || eEnd == null) continue;
+
+      // Intervals [startHour, endHour) and [eStart, eEnd) overlap if startHour < eEnd && endHour > eStart
+      if (startHour < eEnd && endHour > eStart) {
+        return entry;
+      }
+    }
+    return null;
+  }
+
+  void _handleSlotTap(int dayIdx, int hour, {Map<String, dynamic>? existingEntry}) {
+    if (_quickAssignTool != null) {
+      final isBreak = _quickAssignTool == 'Break Time';
+      final startTimeStr = _formatHourString(hour);
+      final endTimeStr = _formatHourString(hour + 1);
+
+      // Check what is currently at this slot
+      final entryStarting = _findEntryStartingAt(dayIdx, hour);
+      final entrySpanning = _findEntrySpanning(dayIdx, hour);
+      final activeMatch = existingEntry ?? entryStarting ?? entrySpanning;
+      final currentSubject = activeMatch?['subject_name'] as String?;
+
+      // 1. TOGGLE TO BLANK: If same subject is already in this slot, tapping again removes it and makes it blank!
+      if (currentSubject != null && currentSubject == _quickAssignTool) {
+        setState(() {
+          if (existingEntry != null) {
+            _timetableEntries.remove(existingEntry);
+          }
+          if (entryStarting != null) {
+            _timetableEntries.remove(entryStarting);
+          }
+          if (entrySpanning != null) {
+            _timetableEntries.remove(entrySpanning);
+          }
+          _timetableEntries.removeWhere(
+            (t) {
+              if (t['day_of_week'] != dayIdx) return false;
+              final sH = _parseHour(t['start_time'] as String?);
+              final eH = _parseHour(t['end_time'] as String?);
+              return sH != null && eH != null && hour >= sH && hour < eH;
+            },
+          );
+        });
+        _saveDraft(immediate: true);
+        HapticFeedback.lightImpact();
+        AppToast.showTopRight(
+          context,
+          'Removed "$currentSubject" from ${_scheduleDays[dayIdx.clamp(0, _scheduleDays.length - 1)]} ${_formatHourDisplay(hour)} slot.',
+          icon: Icons.delete_sweep_rounded,
+          accentColor: AppColors.inkMuted,
+        );
+        return;
+      }
+
+      // 2. CONFLICT CHECK: Cannot overwrite an ongoing multi-hour class spanning into this slot
+      if (entrySpanning != null && !identical(entrySpanning, existingEntry)) {
+        final spanName = entrySpanning['subject_name'] as String? ?? 'Class';
+        final spanStart = entrySpanning['start_time'] as String? ?? '';
+        final spanEnd = entrySpanning['end_time'] as String? ?? '';
+        AppToast.showConflict(
+          context,
+          'Slot ${_formatHourDisplay(hour)} is part of a multi-hour class ($spanName $spanStart–$spanEnd). Edit or resize that class first.',
+        );
+        HapticFeedback.heavyImpact();
+        return;
+      }
+
+      // 3. Normal quick-assign replacement for this 1-hour slot
+      setState(() {
+        if (existingEntry != null) {
+          _timetableEntries.remove(existingEntry);
+        }
+        if (entryStarting != null) {
+          _timetableEntries.remove(entryStarting);
+        }
+        _timetableEntries.removeWhere(
+          (t) => t['day_of_week'] == dayIdx && _parseHour(t['start_time']) == hour,
+        );
+        _timetableEntries.add({
+          'subject_name': _quickAssignTool!,
+          'day_of_week': dayIdx,
+          'start_time': startTimeStr,
+          'end_time': endTimeStr,
+          'class_type': isBreak ? 'Break' : 'Theory',
+          'room': isBreak ? '' : 'Room 101',
+        });
+      });
+      _saveDraft(immediate: true);
+      HapticFeedback.lightImpact();
+      return;
+    }
+
+    // No quick assign tool active: open slot editor modal directly
+    _openSlotEditor(dayOfWeek: dayIdx, startHour: hour, existingEntry: existingEntry);
   }
 
   // STEP 4: ROUTINE / TIMETABLE
@@ -2681,9 +3070,129 @@ class _AcademicSetupScreenState extends ConsumerState<AcademicSetupScreen> with 
         children: [
           _buildStepHeader(
             title: 'Weekly Schedule',
-            subtitle: 'Tap any slot to schedule Theory (1 hr) or Practical/Lab (2 hrs) classes.',
+            subtitle: 'Tap any slot to schedule, or pick a Quick-Assign chip below to fast-fill slots.',
           ),
-          const SizedBox(height: 16),
+
+          // Quick-Assign Toolbar
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+            margin: const EdgeInsets.only(bottom: 14),
+            decoration: BoxDecoration(
+              color: AppColors.surface,
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: AppColors.divider),
+              boxShadow: const [
+                BoxShadow(color: AppColors.shadowWarm, blurRadius: 4, offset: Offset(0, 1)),
+              ],
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    const Expanded(
+                      child: Row(
+                        children: [
+                          Icon(Icons.touch_app_rounded, size: 16, color: AppColors.terracotta),
+                          SizedBox(width: 6),
+                          Expanded(
+                            child: Text(
+                              'Quick-Assign Tool',
+                              style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13, color: AppColors.ink),
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    // Clear Selection Button (disabled when null, active when selected)
+                    TextButton.icon(
+                      onPressed: _quickAssignTool != null
+                          ? () {
+                              HapticFeedback.lightImpact();
+                              setState(() => _quickAssignTool = null);
+                            }
+                          : null,
+                      icon: Icon(
+                        Icons.close_rounded,
+                        size: 13,
+                        color: _quickAssignTool != null ? AppColors.terracotta : AppColors.inkLight.withValues(alpha: 0.5),
+                      ),
+                      label: Text(
+                        'Clear Selection',
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w700,
+                          color: _quickAssignTool != null ? AppColors.terracotta : AppColors.inkLight.withValues(alpha: 0.5),
+                        ),
+                      ),
+                      style: TextButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                        minimumSize: const Size(0, 28),
+                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                        backgroundColor: _quickAssignTool != null
+                            ? AppColors.terracotta.withValues(alpha: 0.08)
+                            : Colors.transparent,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8),
+                          side: BorderSide(
+                            color: _quickAssignTool != null ? AppColors.terracotta.withValues(alpha: 0.4) : AppColors.divider,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 10),
+                SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  physics: const BouncingScrollPhysics(),
+                  child: Row(
+                    children: [
+                      // Tool 1: Break Time
+                      _buildQuickToolChip(
+                        label: 'Break Time',
+                        icon: Icons.coffee_rounded,
+                        color: AppColors.amber,
+                        isSelected: _quickAssignTool == 'Break Time',
+                        onTap: () {
+                          HapticFeedback.selectionClick();
+                          setState(() {
+                            _quickAssignTool = _quickAssignTool == 'Break Time' ? null : 'Break Time';
+                          });
+                        },
+                      ),
+                      const SizedBox(width: 8),
+                      // Tool 2..N: Enrolled Subjects only
+                      ..._subjects.map((sub) {
+                        final name = sub['name'] as String;
+                        final code = sub['code'] as String?;
+                        final col = _parseColor(sub['color'] as String?);
+                        final label = (code != null && code.isNotEmpty) ? code : name;
+                        final isSel = _quickAssignTool == name;
+                        return Padding(
+                          padding: const EdgeInsets.only(right: 8),
+                          child: _buildQuickToolChip(
+                            label: label,
+                            color: col,
+                            isSelected: isSel,
+                            onTap: () {
+                              HapticFeedback.selectionClick();
+                              setState(() {
+                                _quickAssignTool = isSel ? null : name;
+                              });
+                            },
+                          ),
+                        );
+                      }),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
 
           // Timetable Grid with Fixed Leftmost Day Column and Horizontally Scrollable Hour Slots
           Container(
@@ -2900,7 +3409,7 @@ class _AcademicSetupScreenState extends ConsumerState<AcademicSetupScreen> with 
         final startH = _parseHour(startingEntry['start_time'] as String?) ?? hour;
         final endH = _parseHour(startingEntry['end_time'] as String?) ?? (startH + 1);
         final remainingHours = hours.length - i;
-        final span = (endH - startH).clamp(1, remainingHours);
+        final span = (endH - startH).clamp(1, remainingHours).toInt();
         final blockWidth = hourColWidth * span;
 
         cells.add(
@@ -2929,7 +3438,7 @@ class _AcademicSetupScreenState extends ConsumerState<AcademicSetupScreen> with 
         if (spanningEntry != null) {
           final endH = _parseHour(spanningEntry['end_time'] as String?) ?? (hour + 1);
           final remainingHours = hours.length - i;
-          final span = (endH - hour).clamp(1, remainingHours);
+          final span = (endH - hour).clamp(1, remainingHours).toInt();
           final blockWidth = hourColWidth * span;
 
           cells.add(
@@ -3011,15 +3520,16 @@ class _AcademicSetupScreenState extends ConsumerState<AcademicSetupScreen> with 
     return Material(
       color: Colors.transparent,
       child: InkWell(
-        onTap: () => _openSlotEditor(dayOfWeek: dayIdx, startHour: startH, existingEntry: entry),
+        key: Key('slot_card_${dayIdx}_$startH'),
+        onTap: () => _handleSlotTap(dayIdx, startH, existingEntry: entry),
         borderRadius: BorderRadius.circular(10),
         child: Container(
           decoration: BoxDecoration(
             color: AppColors.surface,
             borderRadius: BorderRadius.circular(10),
             border: Border.all(
-              color: AppColors.divider,
-              width: 1.0,
+              color: isBreak ? AppColors.amber.withValues(alpha: 0.4) : subjectColor.withValues(alpha: 0.35),
+              width: 1.2,
             ),
             boxShadow: const [
               BoxShadow(
@@ -3032,7 +3542,7 @@ class _AcademicSetupScreenState extends ConsumerState<AcademicSetupScreen> with 
           clipBehavior: Clip.antiAlias,
           child: Stack(
             children: [
-              // Left accent strip showing subject color
+              // 1. Left accent strip showing subject color
               Positioned(
                 left: 0,
                 top: 0,
@@ -3042,96 +3552,115 @@ class _AcademicSetupScreenState extends ConsumerState<AcademicSetupScreen> with 
                   color: isBreak ? AppColors.amber : subjectColor,
                 ),
               ),
-              // Card Content
-              Padding(
-                padding: const EdgeInsets.only(left: 10, right: 8, top: 6, bottom: 6),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    // Top row: Badges + Edit icon
-                    Row(
-                      children: [
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
-                          decoration: BoxDecoration(
-                            color: isBreak
-                                ? AppColors.amber
-                                : (isLab ? AppColors.sage : subjectColor),
-                            borderRadius: BorderRadius.circular(4),
-                          ),
-                          child: Text(
-                            isBreak ? 'BREAK' : (isLab ? 'LAB' : 'THEORY'),
-                            style: const TextStyle(fontSize: 8, fontWeight: FontWeight.w800, color: Colors.white),
-                          ),
-                        ),
-                        if (span > 1 && !isBreak) ...[
-                          const SizedBox(width: 4),
+
+              // 2. Card Content (IgnorePointer so touches pass through to outer InkWell, leaving right edge clear for edit button)
+              IgnorePointer(
+                child: Padding(
+                  padding: const EdgeInsets.only(left: 10, right: 28, top: 6, bottom: 6),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      // Top row: Badges
+                      Row(
+                        children: [
                           Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                            padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
                             decoration: BoxDecoration(
-                              color: (isLab ? AppColors.sage : subjectColor).withValues(alpha: 0.15),
+                              color: isBreak
+                                  ? AppColors.amber
+                                  : (isLab ? AppColors.sage : subjectColor),
                               borderRadius: BorderRadius.circular(4),
                             ),
                             child: Text(
-                              '${span}h',
-                              style: TextStyle(
-                                fontSize: 8,
-                                fontWeight: FontWeight.w800,
-                                color: isLab ? AppColors.sage : subjectColor,
+                              isBreak ? 'BREAK' : (isLab ? 'LAB' : 'THEORY'),
+                              style: const TextStyle(fontSize: 8, fontWeight: FontWeight.w800, color: Colors.white),
+                            ),
+                          ),
+                          if (span > 1 && !isBreak) ...[
+                            const SizedBox(width: 4),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                              decoration: BoxDecoration(
+                                color: (isLab ? AppColors.sage : subjectColor).withValues(alpha: 0.15),
+                                borderRadius: BorderRadius.circular(4),
+                              ),
+                              child: Text(
+                                '${span}h',
+                                style: TextStyle(
+                                  fontSize: 8,
+                                  fontWeight: FontWeight.w800,
+                                  color: isLab ? AppColors.sage : subjectColor,
+                                ),
                               ),
                             ),
-                          ),
+                          ],
                         ],
-                        const Spacer(),
-                        Icon(Icons.edit_outlined, size: 13, color: isBreak ? AppColors.amber : subjectColor),
-                      ],
-                    ),
+                      ),
 
-                    // Middle: Primary Code/Subject + Secondary Name
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Text(
-                            primaryTitle,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: TextStyle(
-                              fontWeight: FontWeight.w800,
-                              fontSize: span > 1 ? 12 : 11,
-                              color: AppColors.ink,
-                            ),
-                          ),
-                          if (secondaryTitle != null)
+                      // Middle: Primary Code/Subject + Secondary Name
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
                             Text(
-                              secondaryTitle,
+                              primaryTitle,
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                               style: TextStyle(
-                                fontSize: span > 1 ? 10 : 9.5,
-                                fontWeight: FontWeight.w600,
-                                color: AppColors.inkMuted,
+                                fontWeight: FontWeight.w800,
+                                fontSize: span > 1 ? 12 : 11,
+                                color: AppColors.ink,
                               ),
                             ),
-                        ],
+                            if (secondaryTitle != null)
+                              Text(
+                                secondaryTitle,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(
+                                  fontSize: span > 1 ? 10 : 9.5,
+                                  fontWeight: FontWeight.w600,
+                                  color: AppColors.inkMuted,
+                                ),
+                              ),
+                          ],
+                        ),
                       ),
-                    ),
 
-                    // Bottom: Timing & Room
-                    Text(
-                      room.isNotEmpty ? '$room • $startTime – $endTime' : '$startTime – $endTime',
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        fontSize: 9,
-                        color: AppColors.inkMuted,
-                        fontWeight: FontWeight.w500,
+                      // Bottom: Timing & Room
+                      Text(
+                        room.isNotEmpty ? '$room • $startTime – $endTime' : '$startTime – $endTime',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          fontSize: 9,
+                          color: AppColors.inkMuted,
+                          fontWeight: FontWeight.w500,
+                        ),
                       ),
+                    ],
+                  ),
+                ),
+              ),
+
+              // 3. Dedicated Edit Button positioned on top right (receives taps cleanly)
+              Positioned(
+                top: 4,
+                right: 4,
+                child: Material(
+                  color: Colors.transparent,
+                  child: InkWell(
+                    key: Key('edit_slot_${dayIdx}_$startH'),
+                    onTap: () => _openSlotEditor(dayOfWeek: dayIdx, startHour: startH, existingEntry: entry),
+                    borderRadius: BorderRadius.circular(4),
+                    child: Padding(
+                      padding: const EdgeInsets.all(4),
+                      child: Icon(Icons.edit_outlined, size: 14, color: isBreak ? AppColors.amber : subjectColor),
                     ),
-                  ],
+                  ),
                 ),
               ),
             ],
@@ -3146,7 +3675,8 @@ class _AcademicSetupScreenState extends ConsumerState<AcademicSetupScreen> with 
     return Material(
       color: Colors.transparent,
       child: InkWell(
-        onTap: () => _openSlotEditor(dayOfWeek: dayIdx, startHour: hour),
+        key: Key('empty_slot_${dayIdx}_$hour'),
+        onTap: () => _handleSlotTap(dayIdx, hour),
         borderRadius: BorderRadius.circular(10),
         child: Container(
           decoration: BoxDecoration(
@@ -3179,9 +3709,13 @@ class _AcademicSetupScreenState extends ConsumerState<AcademicSetupScreen> with 
                   child: const Icon(Icons.add_rounded, size: 16, color: AppColors.terracotta),
                 ),
                 const SizedBox(height: 4),
-                const Text(
-                  'Add Class',
-                  style: TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: AppColors.inkMuted),
+                Text(
+                  _quickAssignTool != null ? 'Quick Add' : 'Add Class',
+                  style: const TextStyle(
+                    fontSize: 10,
+                    fontWeight: FontWeight.w600,
+                    color: AppColors.inkMuted,
+                  ),
                 ),
               ],
             ),
@@ -3290,7 +3824,7 @@ class _AcademicSetupScreenState extends ConsumerState<AcademicSetupScreen> with 
                               setState(() {
                                 _timetableEntries.remove(existingEntry);
                               });
-                              _saveDraft();
+                              _saveDraft(immediate: true);
                               Navigator.pop(ctx);
                             },
                           )
@@ -3505,10 +4039,39 @@ class _AcademicSetupScreenState extends ConsumerState<AcademicSetupScreen> with 
                           Expanded(
                             child: InkWell(
                               onTap: () {
+                                final targetEndHour = currentStartHour + 2;
+                                if (targetEndHour > _classEndHour) {
+                                  AppToast.showConflict(
+                                    context,
+                                    'Cannot schedule 2-hour class at ${_formatHourDisplay(currentStartHour)}: working hours end at ${_formatHourDisplay(_classEndHour)}.',
+                                  );
+                                  HapticFeedback.heavyImpact();
+                                  return;
+                                }
+
+                                final conflict = _findConflictingEntry(
+                                  dayOfWeek: dayOfWeek,
+                                  startHour: currentStartHour,
+                                  endHour: targetEndHour,
+                                  ignoreEntry: existingEntry,
+                                );
+                                if (conflict != null) {
+                                  final cName = conflict['subject_name'] ?? 'Class';
+                                  final cStart = conflict['start_time'] ?? '';
+                                  final cEnd = conflict['end_time'] ?? '';
+                                  AppToast.showConflict(
+                                    context,
+                                    'Conflict: Cannot schedule 2-hour class. "$cName" is already booked from $cStart to $cEnd.',
+                                  );
+                                  HapticFeedback.heavyImpact();
+                                  return;
+                                }
+
                                 setModalState(() {
                                   classType = 'Practical/Lab';
-                                  currentEndHour = (currentStartHour + 2).clamp(currentStartHour + 1, 23);
+                                  currentEndHour = targetEndHour;
                                 });
+                                HapticFeedback.selectionClick();
                               },
                               borderRadius: BorderRadius.circular(12),
                               child: Container(
@@ -3599,7 +4162,7 @@ class _AcademicSetupScreenState extends ConsumerState<AcademicSetupScreen> with 
                                         startOpts.sort();
                                       }
                                       return startOpts.map((h) {
-                                        return DropdownMenuItem(
+                                        return DropdownMenuItem<int>(
                                           value: h,
                                           child: Text(
                                             _formatHourDisplay(h),
@@ -3610,13 +4173,40 @@ class _AcademicSetupScreenState extends ConsumerState<AcademicSetupScreen> with 
                                     }(),
                                     onChanged: (val) {
                                       if (val != null) {
+                                        final newEnd = (classType == 'Practical/Lab')
+                                            ? (val + 2).clamp(val + 1, 23)
+                                            : (val + 1).clamp(val + 1, 23);
+
+                                        if (newEnd > _classEndHour) {
+                                          AppToast.showConflict(
+                                            context,
+                                            'Classes end at ${_formatHourDisplay(_classEndHour)}. Cannot start class at ${_formatHourDisplay(val)} with duration of ${newEnd - val}h.',
+                                          );
+                                          HapticFeedback.heavyImpact();
+                                          return;
+                                        }
+
+                                        final conflict = _findConflictingEntry(
+                                          dayOfWeek: dayOfWeek,
+                                          startHour: val,
+                                          endHour: newEnd,
+                                          ignoreEntry: existingEntry,
+                                        );
+                                        if (conflict != null) {
+                                          final cName = conflict['subject_name'] ?? 'Class';
+                                          final cStart = conflict['start_time'] ?? '';
+                                          final cEnd = conflict['end_time'] ?? '';
+                                          AppToast.showConflict(
+                                            context,
+                                            'Time conflict: "$cName" is already scheduled from $cStart to $cEnd.',
+                                          );
+                                          HapticFeedback.heavyImpact();
+                                          return;
+                                        }
+
                                         setModalState(() {
                                           currentStartHour = val;
-                                          if (classType == 'Practical/Lab') {
-                                            currentEndHour = (currentStartHour + 2).clamp(currentStartHour + 1, 23);
-                                          } else {
-                                            currentEndHour = (currentStartHour + 1).clamp(currentStartHour + 1, 23);
-                                          }
+                                          currentEndHour = newEnd;
                                         });
                                       }
                                     },
@@ -3663,7 +4253,7 @@ class _AcademicSetupScreenState extends ConsumerState<AcademicSetupScreen> with 
                                         endOpts.sort();
                                       }
                                       return endOpts.map((h) {
-                                        return DropdownMenuItem(
+                                        return DropdownMenuItem<int>(
                                           value: h,
                                           child: Text(
                                             _formatHourDisplay(h),
@@ -3674,6 +4264,38 @@ class _AcademicSetupScreenState extends ConsumerState<AcademicSetupScreen> with 
                                     }(),
                                     onChanged: (val) {
                                       if (val != null) {
+                                        if (val <= currentStartHour) {
+                                          AppToast.showConflict(context, 'End time must be after start time.');
+                                          HapticFeedback.heavyImpact();
+                                          return;
+                                        }
+                                        if (val > _classEndHour) {
+                                          AppToast.showConflict(
+                                            context,
+                                            'Classes end at ${_formatHourDisplay(_classEndHour)}. Cannot set end time to ${_formatHourDisplay(val)}.',
+                                          );
+                                          HapticFeedback.heavyImpact();
+                                          return;
+                                        }
+
+                                        final conflict = _findConflictingEntry(
+                                          dayOfWeek: dayOfWeek,
+                                          startHour: currentStartHour,
+                                          endHour: val,
+                                          ignoreEntry: existingEntry,
+                                        );
+                                        if (conflict != null) {
+                                          final cName = conflict['subject_name'] ?? 'Class';
+                                          final cStart = conflict['start_time'] ?? '';
+                                          final cEnd = conflict['end_time'] ?? '';
+                                          AppToast.showConflict(
+                                            context,
+                                            'Time conflict: "$cName" is already scheduled from $cStart to $cEnd.',
+                                          );
+                                          HapticFeedback.heavyImpact();
+                                          return;
+                                        }
+
                                         setModalState(() {
                                           currentEndHour = val;
                                           if (currentEndHour - currentStartHour >= 2) {
@@ -3734,6 +4356,39 @@ class _AcademicSetupScreenState extends ConsumerState<AcademicSetupScreen> with 
                               style: const TextStyle(fontWeight: FontWeight.w700),
                             ),
                             onPressed: () {
+                              if (currentStartHour >= currentEndHour) {
+                                AppToast.showConflict(context, 'End time must be after start time.');
+                                HapticFeedback.heavyImpact();
+                                return;
+                              }
+
+                              if (currentEndHour > _classEndHour) {
+                                AppToast.showConflict(
+                                  context,
+                                  'Class cannot extend past closing hour (${_formatHourDisplay(_classEndHour)}).',
+                                );
+                                HapticFeedback.heavyImpact();
+                                return;
+                              }
+
+                              final conflict = _findConflictingEntry(
+                                dayOfWeek: dayOfWeek,
+                                startHour: currentStartHour,
+                                endHour: currentEndHour,
+                                ignoreEntry: existingEntry,
+                              );
+                              if (conflict != null) {
+                                final cName = conflict['subject_name'] ?? 'Class';
+                                final cStart = conflict['start_time'] ?? '';
+                                final cEnd = conflict['end_time'] ?? '';
+                                AppToast.showConflict(
+                                  context,
+                                  'Schedule conflict: "$cName" is already scheduled from $cStart to $cEnd.',
+                                );
+                                HapticFeedback.heavyImpact();
+                                return;
+                              }
+
                               final startTimeStr = _formatHourString(currentStartHour);
                               final endTimeStr = _formatHourString(currentEndHour);
                               final roomVal = roomCtrl.text.trim();
@@ -3759,7 +4414,8 @@ class _AcademicSetupScreenState extends ConsumerState<AcademicSetupScreen> with 
                                 }
                                 _selectedRoutineSubject = selectedSubject;
                               });
-                              _saveDraft();
+                              _saveDraft(immediate: true);
+                              HapticFeedback.lightImpact();
                               Navigator.pop(ctx);
                             },
                           ),
@@ -4522,93 +5178,112 @@ class _AcademicSetupScreenState extends ConsumerState<AcademicSetupScreen> with 
             subtitle: 'Confirm all details before activating your semester. Tap edit on any section to adjust settings.',
           ),
 
-          // 1. Top Metrics Quick Grid (4 Cards)
-          Row(
-            children: [
-              Expanded(
-                child: Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: AppColors.surface,
-                    borderRadius: BorderRadius.circular(14),
-                    border: Border.all(color: AppColors.divider),
-                    boxShadow: const [
-                      BoxShadow(color: AppColors.shadowWarm, blurRadius: 4, offset: Offset(0, 1)),
-                    ],
-                  ),
-                  child: Column(
-                    children: [
-                      Text('${_subjects.length}', style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w800, color: AppColors.terracotta)),
-                      const SizedBox(height: 2),
-                      const Text('Subjects', style: TextStyle(fontSize: 11, color: AppColors.inkMuted, fontWeight: FontWeight.w600)),
-                    ],
-                  ),
-                ),
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: AppColors.surface,
-                    borderRadius: BorderRadius.circular(14),
-                    border: Border.all(color: AppColors.divider),
-                    boxShadow: const [
-                      BoxShadow(color: AppColors.shadowWarm, blurRadius: 4, offset: Offset(0, 1)),
-                    ],
-                  ),
-                  child: Column(
-                    children: [
-                      Text('${_timetableEntries.length}', style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w800, color: AppColors.ocean)),
-                      const SizedBox(height: 2),
-                      const Text('Weekly Slots', style: TextStyle(fontSize: 11, color: AppColors.inkMuted, fontWeight: FontWeight.w600)),
-                    ],
+          // 1. Top Metrics Quick Grid (4 Cards - Strictly Equal Height & Unified)
+          IntrinsicHeight(
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Expanded(
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 12),
+                    decoration: BoxDecoration(
+                      color: AppColors.surface,
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(color: AppColors.divider),
+                      boxShadow: const [
+                        BoxShadow(color: AppColors.shadowWarm, blurRadius: 4, offset: Offset(0, 1)),
+                      ],
+                    ),
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Text('${_subjects.length}', style: const TextStyle(fontSize: 19, fontWeight: FontWeight.w800, color: AppColors.terracotta)),
+                        const SizedBox(height: 3),
+                        const FittedBox(
+                          fit: BoxFit.scaleDown,
+                          child: Text('Subjects', maxLines: 1, style: TextStyle(fontSize: 11, color: AppColors.inkMuted, fontWeight: FontWeight.w600)),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: AppColors.surface,
-                    borderRadius: BorderRadius.circular(14),
-                    border: Border.all(color: AppColors.divider),
-                    boxShadow: const [
-                      BoxShadow(color: AppColors.shadowWarm, blurRadius: 4, offset: Offset(0, 1)),
-                    ],
-                  ),
-                  child: Column(
-                    children: [
-                      Text('${_holidays.length}', style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w800, color: AppColors.amber)),
-                      const SizedBox(height: 2),
-                      const Text('Events', style: TextStyle(fontSize: 11, color: AppColors.inkMuted, fontWeight: FontWeight.w600)),
-                    ],
-                  ),
-                ),
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: AppColors.surface,
-                    borderRadius: BorderRadius.circular(14),
-                    border: Border.all(color: AppColors.divider),
-                    boxShadow: const [
-                      BoxShadow(color: AppColors.shadowWarm, blurRadius: 4, offset: Offset(0, 1)),
-                    ],
-                  ),
-                  child: Column(
-                    children: [
-                      Text('${_personalTarget.toStringAsFixed(0)}%', style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w800, color: AppColors.sage)),
-                      const SizedBox(height: 2),
-                      const Text('Target Goal', style: TextStyle(fontSize: 11, color: AppColors.inkMuted, fontWeight: FontWeight.w600)),
-                    ],
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 12),
+                    decoration: BoxDecoration(
+                      color: AppColors.surface,
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(color: AppColors.divider),
+                      boxShadow: const [
+                        BoxShadow(color: AppColors.shadowWarm, blurRadius: 4, offset: Offset(0, 1)),
+                      ],
+                    ),
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Text('${_timetableEntries.length}', style: const TextStyle(fontSize: 19, fontWeight: FontWeight.w800, color: AppColors.ocean)),
+                        const SizedBox(height: 3),
+                        const FittedBox(
+                          fit: BoxFit.scaleDown,
+                          child: Text('Weekly Slots', maxLines: 1, style: TextStyle(fontSize: 11, color: AppColors.inkMuted, fontWeight: FontWeight.w600)),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
-              ),
-            ],
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 12),
+                    decoration: BoxDecoration(
+                      color: AppColors.surface,
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(color: AppColors.divider),
+                      boxShadow: const [
+                        BoxShadow(color: AppColors.shadowWarm, blurRadius: 4, offset: Offset(0, 1)),
+                      ],
+                    ),
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Text('${_holidays.length}', style: const TextStyle(fontSize: 19, fontWeight: FontWeight.w800, color: AppColors.amber)),
+                        const SizedBox(height: 3),
+                        const FittedBox(
+                          fit: BoxFit.scaleDown,
+                          child: Text('Events', maxLines: 1, style: TextStyle(fontSize: 11, color: AppColors.inkMuted, fontWeight: FontWeight.w600)),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 12),
+                    decoration: BoxDecoration(
+                      color: AppColors.surface,
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(color: AppColors.divider),
+                      boxShadow: const [
+                        BoxShadow(color: AppColors.shadowWarm, blurRadius: 4, offset: Offset(0, 1)),
+                      ],
+                    ),
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Text('${_personalTarget.toStringAsFixed(0)}%', style: const TextStyle(fontSize: 19, fontWeight: FontWeight.w800, color: AppColors.sage)),
+                        const SizedBox(height: 3),
+                        const FittedBox(
+                          fit: BoxFit.scaleDown,
+                          child: Text('Target Goal', maxLines: 1, style: TextStyle(fontSize: 11, color: AppColors.inkMuted, fontWeight: FontWeight.w600)),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
           ),
           const SizedBox(height: 14),
 

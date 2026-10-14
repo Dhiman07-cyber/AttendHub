@@ -400,8 +400,8 @@ async def authenticate_google_user(db: AsyncSession, data: GoogleAuthRequest) ->
         sem_end = date(2026, 12, 20)
         semester = Semester(
             user_id=user.id,
-            semester_number=5,
-            label="5th Semester",
+            semester_number=1,
+            label="1st Semester",
             start_date=sem_start,
             end_date=sem_end,
             status="ACTIVE",
@@ -413,9 +413,9 @@ async def authenticate_google_user(db: AsyncSession, data: GoogleAuthRequest) ->
 
         profile = AcademicProfile(
             user_id=user.id,
-            university_name="Assam down town University",
-            course_name="B.Tech Computer Science & Engineering",
-            student_id_number=f"ADTU/0/2024-28/BCSM/{str(uuid.uuid4().int)[:3]}",
+            university_name="",
+            course_name="",
+            student_id_number=None,
             academic_duration_years=4,
             academic_session_start=2024,
             academic_session_end=2028,
@@ -426,162 +426,6 @@ async def authenticate_google_user(db: AsyncSession, data: GoogleAuthRequest) ->
         )
         db.add(profile)
         await db.flush()
-
-        # Seed Standard Curriculum Subjects & Routines
-        subjects_data = [
-            {"name": "Software Engineering", "code": "CS-501", "faculty": "Prof. A. Sharma", "color": "#E06D53", "icon": "code", "att": 33, "abs": 7},
-            {"name": "Operating Systems", "code": "CS-502", "faculty": "Prof. R. Das", "color": "#D98786", "icon": "settings", "att": 20, "abs": 7},
-            {"name": "Mathematics", "code": "MA-501", "faculty": "Prof. K. Deka", "color": "#8F7BAE", "icon": "functions", "att": 15, "abs": 7},
-            {"name": "Database Management", "code": "CS-503", "faculty": "Prof. M. Ali", "color": "#72A68A", "icon": "database", "att": 20, "abs": 7},
-            {"name": "Computer Networks", "code": "CS-504", "faculty": "Prof. S. Ahmed", "color": "#5A93B5", "icon": "wifi", "att": 24, "abs": 6},
-            {"name": "Technical Communication", "code": "HS-501", "faculty": "Prof. N. Barman", "color": "#D9A35B", "icon": "chat", "att": 18, "abs": 3},
-        ]
-        subject_objects = []
-        for s_info in subjects_data:
-            subj = Subject(
-                semester_id=semester.id,
-                name=s_info["name"],
-                code=s_info["code"],
-                faculty_name=s_info["faculty"],
-                color=s_info["color"],
-                icon=s_info["icon"],
-                is_active=True
-            )
-            db.add(subj)
-            subject_objects.append((subj, s_info))
-        await db.flush()
-
-        timetable_plan = [
-            (subject_objects[0][0], 0, "09:00", "10:00", "Room 101"),
-            (subject_objects[0][0], 2, "09:00", "10:00", "Room 101"),
-            (subject_objects[0][0], 4, "09:00", "10:00", "Room 101"),
-            (subject_objects[1][0], 0, "11:00", "12:00", "Room 203"),
-            (subject_objects[1][0], 1, "11:00", "12:00", "Room 203"),
-            (subject_objects[1][0], 2, "11:00", "12:00", "Room 203"),
-            (subject_objects[1][0], 3, "11:00", "12:00", "Room 203"),
-            (subject_objects[2][0], 1, "14:00", "15:00", "Room 305"),
-            (subject_objects[2][0], 2, "14:00", "15:00", "Room 305"),
-            (subject_objects[2][0], 3, "14:00", "15:00", "Room 305"),
-            (subject_objects[3][0], 0, "16:00", "17:00", "Room 104"),
-            (subject_objects[3][0], 2, "16:00", "17:00", "Room 104"),
-            (subject_objects[4][0], 1, "10:00", "11:00", "Room 205"),
-            (subject_objects[4][0], 4, "10:00", "11:00", "Room 205"),
-            (subject_objects[5][0], 2, "13:00", "14:00", "Room 401"),
-            (subject_objects[5][0], 4, "13:00", "14:00", "Room 401"),
-            (subject_objects[0][0], 5, "10:00", "11:00", "Lab 1"),
-            (subject_objects[1][0], 6, "10:00", "11:00", "Room 203"),
-        ]
-        for subj, day, start, end, rm in timetable_plan:
-            tt = TimetableEntry(
-                semester_id=semester.id,
-                subject_id=subj.id,
-                day_of_week=day,
-                start_time=start,
-                end_time=end,
-                faculty_name=subj.faculty_name,
-                room=rm,
-                effective_from=sem_start,
-                effective_to=sem_end
-            )
-            db.add(tt)
-
-        # Seed attendance records
-        for subj, s_info in subject_objects:
-            att_needed = s_info["att"]
-            abs_needed = s_info["abs"]
-            for i in range(att_needed):
-                hist_date = sem_start + timedelta(days=(i * 2) % 65)
-                sess = ClassSession(
-                    semester_id=semester.id,
-                    subject_id=subj.id,
-                    date=hist_date,
-                    start_time="09:00",
-                    end_time="10:00",
-                    faculty_name=subj.faculty_name,
-                    room="Room 101",
-                    session_status="HELD"
-                )
-                db.add(sess)
-                await db.flush()
-                rec = AttendanceRecord(
-                    class_session_id=sess.id,
-                    user_id=user.id,
-                    status="ATTENDED",
-                    source="system_seed"
-                )
-                db.add(rec)
-            for j in range(abs_needed):
-                hist_date = sem_start + timedelta(days=(j * 3 + 1) % 65)
-                sess = ClassSession(
-                    semester_id=semester.id,
-                    subject_id=subj.id,
-                    date=hist_date,
-                    start_time="09:00",
-                    end_time="10:00",
-                    faculty_name=subj.faculty_name,
-                    room="Room 101",
-                    session_status="HELD"
-                )
-                db.add(sess)
-                await db.flush()
-                rec = AttendanceRecord(
-                    class_session_id=sess.id,
-                    user_id=user.id,
-                    status="ABSENT",
-                    source="system_seed"
-                )
-                db.add(rec)
-
-        target_today = date(2026, 10, 8)
-        today_schedule = [
-            (subject_objects[0][0], "09:00", "10:00", "Prof. A. Sharma", "Room 101", "ATTENDED"),
-            (subject_objects[1][0], "11:00", "12:00", "Prof. R. Das", "Room 203", None),
-            (subject_objects[2][0], "14:00", "15:00", "Prof. K. Deka", "Room 305", None),
-            (subject_objects[3][0], "16:00", "17:00", "Prof. M. Ali", "Room 104", None),
-        ]
-        for subj, start, end, faculty, rm, init_status in today_schedule:
-            sess = ClassSession(
-                semester_id=semester.id,
-                subject_id=subj.id,
-                date=target_today,
-                start_time=start,
-                end_time=end,
-                faculty_name=faculty,
-                room=rm,
-                session_status="SCHEDULED"
-            )
-            db.add(sess)
-            await db.flush()
-            if init_status:
-                rec = AttendanceRecord(
-                    class_session_id=sess.id,
-                    user_id=user.id,
-                    status=init_status,
-                    source="system_seed"
-                )
-                db.add(rec)
-
-        holidays_data = [
-            ("Internal Assessment 2", date(2026, 10, 17), date(2026, 10, 17), "Academic", "Unit tests for semester mid-term"),
-            ("Durga Puja", date(2026, 10, 21), date(2026, 10, 25), "Festival", "Autumn festival break"),
-            ("Diwali", date(2026, 11, 4), date(2026, 11, 6), "Festival", "Festival of lights"),
-            ("Children's Day", date(2026, 11, 14), date(2026, 11, 14), "Other", "Institutional observance"),
-            ("Christmas", date(2026, 12, 25), date(2026, 12, 25), "Festival", "Winter holiday"),
-            ("Independence Day", date(2026, 8, 15), date(2026, 8, 15), "University Holiday", "National holiday"),
-            ("Teachers' Day", date(2026, 9, 5), date(2026, 9, 5), "Other", "Institutional celebration"),
-        ]
-        for title, s_dt, e_dt, cat, notes in holidays_data:
-            hol = Holiday(
-                user_id=user.id,
-                semester_id=semester.id,
-                start_date=s_dt,
-                end_date=e_dt,
-                title=title,
-                category=cat,
-                notes=notes,
-                source="system_seed"
-            )
-            db.add(hol)
 
         await db.commit()
         await db.refresh(user)

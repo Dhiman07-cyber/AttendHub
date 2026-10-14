@@ -86,38 +86,48 @@ class DashboardScreen extends ConsumerWidget {
                     Expanded(
                       flex: 6,
                       child: LiquidGlassCard(
-                        padding: const EdgeInsets.all(16),
+                        padding: const EdgeInsets.all(12),
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Row(
                               mainAxisAlignment: MainAxisAlignment.spaceBetween,
                               children: [
-                                Row(
-                                  children: [
-                                    Container(
-                                      padding: const EdgeInsets.all(4),
-                                      decoration: const BoxDecoration(
-                                        color: Color(0xFFEFE9E4),
-                                        shape: BoxShape.circle,
+                                Expanded(
+                                  child: Row(
+                                    children: [
+                                      Container(
+                                        padding: const EdgeInsets.all(4),
+                                        decoration: const BoxDecoration(
+                                          color: Color(0xFFEFE9E4),
+                                          shape: BoxShape.circle,
+                                        ),
+                                        child: const Icon(
+                                          Icons.pie_chart_outline_rounded,
+                                          size: 14,
+                                          color: AppColors.inkSecondary,
+                                        ),
                                       ),
-                                      child: const Icon(
-                                        Icons.pie_chart_outline_rounded,
-                                        size: 14,
-                                        color: AppColors.inkSecondary,
+                                      const SizedBox(width: 6),
+                                      const Flexible(
+                                        child: FittedBox(
+                                          fit: BoxFit.scaleDown,
+                                          alignment: Alignment.centerLeft,
+                                          child: Text(
+                                            'Overall Attendance',
+                                            maxLines: 1,
+                                            style: TextStyle(
+                                              fontWeight: FontWeight.w700,
+                                              fontSize: 13,
+                                              color: AppColors.ink,
+                                            ),
+                                          ),
+                                        ),
                                       ),
-                                    ),
-                                    const SizedBox(width: 6),
-                                    const Text(
-                                      'Overall Attendance',
-                                      style: TextStyle(
-                                        fontWeight: FontWeight.w700,
-                                        fontSize: 13,
-                                        color: AppColors.ink,
-                                      ),
-                                    ),
-                                  ],
+                                    ],
+                                  ),
                                 ),
+                                const SizedBox(width: 4),
                                 const Icon(Icons.chevron_right_rounded,
                                     size: 18, color: AppColors.inkMuted),
                               ],

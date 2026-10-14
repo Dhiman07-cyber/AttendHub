@@ -20,8 +20,6 @@
   <meta content="IE=Edge" http-equiv="X-UA-Compatible">
   <meta name="description" content="AttendiFy — Student Attendance Tracking & Planning Utility">
 
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, interactive-widget=resizes-content">
-
   <!-- iOS meta tags & icons -->
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black">
@@ -32,8 +30,51 @@
   <link rel="icon" type="image/x-icon" href="favicon.ico"/>
   <link rel="icon" type="image/png" sizes="64x64" href="favicon.png"/>
 
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+
+  <!-- Google Sign-In Web Client ID (Required by Google Identity Services on Web) -->
+  <meta name="google-signin-client_id" content="116527451867-n5nghihimlb6t326l6hgf13ch4ad83uh.apps.googleusercontent.com">
+
   <title>AttendiFy</title>
   <link rel="manifest" href="manifest.json">
+
+  <!-- Guard against Flutter Web negative ViewInsets assertion when zooming or using DevTools Device Mode -->
+  <script>
+    (function() {
+      try {
+        if (typeof VisualViewport !== 'undefined' && VisualViewport.prototype) {
+          var heightDesc = Object.getOwnPropertyDescriptor(VisualViewport.prototype, 'height');
+          if (heightDesc && heightDesc.get) {
+            var origHeight = heightDesc.get;
+            Object.defineProperty(VisualViewport.prototype, 'height', {
+              get: function() {
+                var h = origHeight.call(this);
+                var maxH = window.innerHeight;
+                return (maxH && h > maxH) ? maxH : h;
+              },
+              configurable: true,
+              enumerable: true
+            });
+          }
+          var widthDesc = Object.getOwnPropertyDescriptor(VisualViewport.prototype, 'width');
+          if (widthDesc && widthDesc.get) {
+            var origWidth = widthDesc.get;
+            Object.defineProperty(VisualViewport.prototype, 'width', {
+              get: function() {
+                var w = origWidth.call(this);
+                var maxW = window.innerWidth;
+                return (maxW && w > maxW) ? maxW : w;
+              },
+              configurable: true,
+              enumerable: true
+            });
+          }
+        }
+      } catch (e) {
+        // Non-blocking fallback
+      }
+    })();
+  </script>
 
   <style>
     *, *::before, *::after {
@@ -47,7 +88,6 @@
       width: 100%;
       height: 100%;
       overflow: hidden;
-      position: fixed;
       background-color: #F7F1EC;
       -webkit-tap-highlight-color: transparent !important;
       user-select: none;

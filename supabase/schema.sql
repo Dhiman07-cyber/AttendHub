@@ -81,7 +81,8 @@ CREATE TABLE IF NOT EXISTS public.timetable_entries (
     faculty_name VARCHAR(100),
     room VARCHAR(50),
     effective_from DATE,
-    effective_to DATE
+    effective_to DATE,
+    class_type VARCHAR(20) -- THEORY, LAB, or NULL (treated as UNSPECIFIED for legacy)
 );
 
 -- 2.6 Class Sessions Table (Discrete instances)
@@ -95,7 +96,8 @@ CREATE TABLE IF NOT EXISTS public.class_sessions (
     faculty_name VARCHAR(100),
     room VARCHAR(50),
     session_status VARCHAR(20) DEFAULT 'SCHEDULED' NOT NULL CHECK (session_status IN ('SCHEDULED', 'HELD', 'CANCELLED', 'HOLIDAY', 'NOT_HELD')),
-    is_extra BOOLEAN DEFAULT FALSE NOT NULL
+    is_extra BOOLEAN DEFAULT FALSE NOT NULL,
+    class_type VARCHAR(20) -- Snapshotted from timetable_entries.class_type at session creation
 );
 
 -- 2.7 Academic Calendar & Holidays Table

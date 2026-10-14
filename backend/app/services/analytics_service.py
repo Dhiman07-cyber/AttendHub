@@ -3,30 +3,45 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, and_, case
 from fastapi import HTTPException, status
 from collections import defaultdict
+from datetime import date
 
 from app.models.semester import Semester
 from app.models.subject import Subject
 from app.models.session import ClassSession
 from app.models.attendance import AttendanceRecord
 from app.models.profile import AcademicProfile
+from app.models.timetable import TimetableEntry
+from app.models.holiday import Holiday
 from app.schemas.analytics import (
-    SubjectAnalyticsOut, AttendanceTrendPoint, AnalyticsOverviewOut, InsightOut
+    SubjectAnalyticsOut, AttendanceTrendPoint, AnalyticsOverviewOut, InsightOut,
+    TypeBreakdownMetrics
 )
 from app.calculations.attendance_engine import (
-    calculate_subject_metrics, calculate_overall_metrics
+    calculate_subject_metrics, calculate_overall_metrics, calculate_subject_with_type_breakdown
+)
+from app.calculations.forecast_engine import (
+    calculate_future_classes_count, calculate_projected_final_attendance,
+    calculate_max_future_absences_by_semester_end, calculate_forecast_status,
+    enumerate_future_class_dates
 )
 from app.calculations.insight_engine import generate_insights_for_semester
 from app.services.academic_service import get_active_semester
+
 
 async def _fetch_subject_attendance_counts(
     db: AsyncSession,
     user_id: str,
     semester_id: str
 ) -> Dict[str, Dict[str, int]]:
-    """Single grouped query replacing N+1 per-subject count queries."""
+    """
+    Single grouped query replacing N+1 per-subject count queries.
+    Returns overall + Theory + Lab breakdown counts.
+    """
+    # Normalize NULL class_type to "UNSPECIFIED"
     stmt = (
         select(
             ClassSession.subject_id,
+            func.coalesce(ClassSession.class_type, "UNSPECIFIED").label("class_type"),
             func.count(case((AttendanceRecord.status == "ATTENDED", 1))).label("attended"),
             func.count(case((AttendanceRecord.status == "ABSENT", 1))).label("absent")
         )
@@ -35,16 +50,38 @@ async def _fetch_subject_attendance_counts(
             AttendanceRecord.user_id == user_id,
             ClassSession.semester_id == semester_id
         )
-        .group_by(ClassSession.subject_id)
+        .group_by(ClassSession.subject_id, func.coalesce(ClassSession.class_type, "UNSPECIFIED"))
     )
     result = await db.execute(stmt)
-    counts = {}
+    
+    # Build nested structure: subject_id -> {overall, THEORY, LAB, UNSPECIFIED}
+    counts = defaultdict(lambda: {
+        "attended": 0, "absent": 0,
+        "theory_attended": 0, "theory_absent": 0,
+        "lab_attended": 0, "lab_absent": 0,
+        "unspecified_attended": 0, "unspecified_absent": 0
+    })
+    
     for row in result.all():
-        counts[row.subject_id] = {
-            "attended": row.attended or 0,
-            "absent": row.absent or 0
-        }
-    return counts
+        sid = row.subject_id
+        ctype = row.class_type or "UNSPECIFIED"
+        att = row.attended or 0
+        ab = row.absent or 0
+        
+        counts[sid]["attended"] += att
+        counts[sid]["absent"] += ab
+        
+        if ctype == "THEORY":
+            counts[sid]["theory_attended"] += att
+            counts[sid]["theory_absent"] += ab
+        elif ctype == "LAB":
+            counts[sid]["lab_attended"] += att
+            counts[sid]["lab_absent"] += ab
+        else:  # UNSPECIFIED
+            counts[sid]["unspecified_attended"] += att
+            counts[sid]["unspecified_absent"] += ab
+    
+    return dict(counts)
 
 async def get_semester_overall_metrics(
     db: AsyncSession,
@@ -114,6 +151,40 @@ async def get_analytics_overview(
 
     counts_map = await _fetch_subject_attendance_counts(db, user_id, semester_id)
 
+    # Fetch timetable entries for forecast
+    tt_stmt = select(TimetableEntry).where(TimetableEntry.semester_id == semester_id)
+    tt_res = await db.execute(tt_stmt)
+    timetable_entries = tt_res.scalars().all()
+    tt_dicts = [
+        {
+            "id": e.id,
+            "subject_id": e.subject_id,
+            "day_of_week": e.day_of_week,
+            "start_time": e.start_time,
+            "end_time": e.end_time,
+            "class_type": e.class_type or "UNSPECIFIED",
+            "effective_from": e.effective_from,
+            "effective_to": e.effective_to
+        } for e in timetable_entries
+    ]
+
+    # Fetch holidays
+    hol_stmt = select(Holiday).where(Holiday.semester_id == semester_id, Holiday.user_id == user_id)
+    hol_res = await db.execute(hol_stmt)
+    holidays = hol_res.scalars().all()
+    holiday_ranges = [(h.start_date, h.end_date) for h in holidays]
+
+    # Forecast parameters
+    today = date.today()
+    forecast_from = today
+    semester_start = sem.start_date
+    semester_end = sem.end_date
+    working_days_mask = set(sem.working_days)  # Property returns List[int]
+    
+    forecast_status = calculate_forecast_status(
+        semester_start, semester_end, tt_dicts, working_days_configured=bool(sem._working_days_raw)
+    )
+
     subjects_out: List[SubjectAnalyticsOut] = []
     subject_metric_dicts: List[Dict[str, Any]] = []
 
@@ -121,18 +192,77 @@ async def get_analytics_overview(
     total_safe_margin = 0
 
     for s in subjects:
-        c = counts_map.get(s.id, {"attended": 0, "absent": 0})
+        c = counts_map.get(s.id, {
+            "attended": 0, "absent": 0,
+            "theory_attended": 0, "theory_absent": 0,
+            "lab_attended": 0, "lab_absent": 0,
+            "unspecified_attended": 0, "unspecified_absent": 0
+        })
+        
         att = c["attended"]
         ab = c["absent"]
+        theory_att = c["theory_attended"]
+        theory_ab = c["theory_absent"]
+        lab_att = c["lab_attended"]
+        lab_ab = c["lab_absent"]
 
-        m = calculate_subject_metrics(att, ab, min_req, target_req)
-        m["subject_id"] = s.id
-        m["name"] = s.name
+        # Calculate with breakdown
+        breakdown = calculate_subject_with_type_breakdown(
+            att, ab, theory_att, theory_ab, lab_att, lab_ab, min_req, target_req
+        )
+
+        # Future classes forecast for this subject
+        if forecast_status == "COMPLETE":
+            remaining = calculate_future_classes_count(
+                tt_dicts, semester_start, semester_end, holiday_ranges,
+                forecast_from, subject_id=s.id, working_days_mask=working_days_mask
+            )
+            remaining_theory = calculate_future_classes_count(
+                tt_dicts, semester_start, semester_end, holiday_ranges,
+                forecast_from, subject_id=s.id, class_type_filter="THEORY", working_days_mask=working_days_mask
+            )
+            remaining_lab = calculate_future_classes_count(
+                tt_dicts, semester_start, semester_end, holiday_ranges,
+                forecast_from, subject_id=s.id, class_type_filter="LAB", working_days_mask=working_days_mask
+            )
+            projected_final = calculate_projected_final_attendance(att, att + ab, remaining)
+            max_abs_min = calculate_max_future_absences_by_semester_end(att, att + ab, remaining, min_req)
+            max_abs_target = calculate_max_future_absences_by_semester_end(att, att + ab, remaining, target_req)
+        else:
+            remaining = None
+            remaining_theory = None
+            remaining_lab = None
+            projected_final = None
+            max_abs_min = None
+            max_abs_target = None
+
+        m = {
+            "subject_id": s.id,
+            "name": s.name,
+            "attended": breakdown["attended"],
+            "absent": breakdown["absent"],
+            "conducted": breakdown["conducted"],
+            "percentage": breakdown["percentage"],
+            "has_data": breakdown["has_data"],
+            "status": breakdown["status"],
+            "status_label": breakdown["status_label"],
+            "minimum_requirement": breakdown["minimum_requirement"],
+            "personal_target": breakdown["personal_target"],
+            "classes_needed_for_min": breakdown["classes_needed_for_min"],
+            "classes_needed_for_target": breakdown["classes_needed_for_target"],
+            "max_safe_absences": breakdown["max_safe_absences"],
+            "can_miss_message": breakdown["can_miss_message"],
+            "recovery_message": breakdown["recovery_message"]
+        }
         subject_metric_dicts.append(m)
 
         if m["classes_needed_for_min"]:
             total_recovery += m["classes_needed_for_min"]
         total_safe_margin += m["max_safe_absences"]
+
+        # Build Theory/Lab metrics
+        theory_m = breakdown.get("theory_metrics")
+        lab_m = breakdown.get("lab_metrics")
 
         subjects_out.append(SubjectAnalyticsOut(
             subject_id=s.id,
@@ -154,7 +284,18 @@ async def get_analytics_overview(
             classes_needed_for_target=m["classes_needed_for_target"],
             max_safe_absences=m["max_safe_absences"],
             can_miss_message=m["can_miss_message"],
-            recovery_message=m["recovery_message"]
+            recovery_message=m["recovery_message"],
+            theory_metrics=TypeBreakdownMetrics(**theory_m) if theory_m else None,
+            lab_metrics=TypeBreakdownMetrics(**lab_m) if lab_m else None,
+            unclassified_attended=breakdown.get("unclassified_attended", 0),
+            unclassified_conducted=breakdown.get("unclassified_conducted", 0),
+            remaining_classes=remaining,
+            remaining_theory_classes=remaining_theory,
+            remaining_lab_classes=remaining_lab,
+            projected_final_percentage=projected_final,
+            max_future_absences_for_min=max_abs_min,
+            max_future_absences_for_target=max_abs_target,
+            forecast_status=forecast_status
         ))
 
     overall = calculate_overall_metrics(subject_metric_dicts, min_req, target_req)
@@ -204,6 +345,19 @@ async def get_analytics_overview(
     if len(trends) >= 2:
         month_over_month_change = round(trends[-1].percentage - trends[-2].percentage, 1)
 
+    # Overall semester forecast
+    if forecast_status == "COMPLETE":
+        total_remaining = calculate_future_classes_count(
+            tt_dicts, semester_start, semester_end, holiday_ranges,
+            forecast_from, working_days_mask=working_days_mask
+        )
+        projected_overall_final = calculate_projected_final_attendance(
+            overall["total_attended"], overall["total_conducted"], total_remaining
+        )
+    else:
+        total_remaining = None
+        projected_overall_final = None
+
     return AnalyticsOverviewOut(
         semester_id=sem.id,
         semester_label=sem.label,
@@ -224,5 +378,8 @@ async def get_analytics_overview(
         subjects=subjects_out,
         insights=insights_out,
         trends=trends,
-        month_over_month_change=month_over_month_change
+        month_over_month_change=month_over_month_change,
+        total_remaining_classes=total_remaining,
+        projected_overall_final_percentage=projected_overall_final,
+        forecast_status=forecast_status
     )

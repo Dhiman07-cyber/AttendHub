@@ -19,7 +19,7 @@ class AttendanceProgressRing extends StatelessWidget {
     required this.conducted,
     this.targetPercentage = 75.0,
     this.minimumPercentage = 75.0,
-    this.trendChange = 6.2,
+    this.trendChange = 0.0,
     this.size = 130.0,
   });
 
@@ -138,42 +138,68 @@ class AttendanceProgressRing extends StatelessWidget {
                   SizedBox(height: isCompact ? 4 : 8),
 
                   // Trend from last month (guaranteed scale down without overflow)
-                  FittedBox(
-                    fit: BoxFit.scaleDown,
-                    alignment: Alignment.centerLeft,
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(
-                          trendChange >= 0
-                              ? Icons.arrow_upward_rounded
-                              : Icons.arrow_downward_rounded,
-                          size: isCompact ? 11 : 14,
-                          color:
-                              trendChange >= 0 ? AppColors.sage : AppColors.coral,
-                        ),
-                        const SizedBox(width: 2),
-                        Text(
-                          '${trendChange >= 0 ? '+' : ''}${trendChange.toStringAsFixed(1)}%',
-                          style: TextStyle(
-                            fontSize: isCompact ? 10.0 : 12,
-                            fontWeight: FontWeight.w700,
-                            color: trendChange >= 0
-                                ? AppColors.sageDark
-                                : AppColors.coral,
+                  // Trend from last month
+                  if (conducted > 0 && trendChange != 0.0)
+                    FittedBox(
+                      fit: BoxFit.scaleDown,
+                      alignment: Alignment.centerLeft,
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            trendChange >= 0
+                                ? Icons.arrow_upward_rounded
+                                : Icons.arrow_downward_rounded,
+                            size: isCompact ? 11 : 14,
+                            color:
+                                trendChange >= 0 ? AppColors.sage : AppColors.coral,
                           ),
-                        ),
-                        const SizedBox(width: 3),
-                        Text(
-                          isCompact ? 'last mo' : 'from last mo',
-                          style: AppTypography.bodySmall.copyWith(
-                            fontSize: isCompact ? 9.0 : 11,
+                          const SizedBox(width: 2),
+                          Text(
+                            '${trendChange >= 0 ? '+' : ''}${trendChange.toStringAsFixed(1)}%',
+                            style: TextStyle(
+                              fontSize: isCompact ? 10.0 : 12,
+                              fontWeight: FontWeight.w700,
+                              color: trendChange >= 0
+                                  ? AppColors.sageDark
+                                  : AppColors.coral,
+                            ),
+                          ),
+                          const SizedBox(width: 3),
+                          Text(
+                            isCompact ? 'last mo' : 'from last mo',
+                            style: AppTypography.bodySmall.copyWith(
+                              fontSize: isCompact ? 9.0 : 11,
+                              color: AppColors.inkMuted,
+                            ),
+                          ),
+                        ],
+                      ),
+                    )
+                  else
+                    FittedBox(
+                      fit: BoxFit.scaleDown,
+                      alignment: Alignment.centerLeft,
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            Icons.remove_rounded,
+                            size: isCompact ? 11 : 14,
                             color: AppColors.inkMuted,
                           ),
-                        ),
-                      ],
+                          const SizedBox(width: 2),
+                          Text(
+                            'No trend yet',
+                            style: TextStyle(
+                              fontSize: isCompact ? 9.5 : 11,
+                              fontWeight: FontWeight.w600,
+                              color: AppColors.inkMuted,
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
-                  ),
                 ],
               ),
             ),

@@ -23,10 +23,22 @@ void main(List<String> args) async {
 
   // Ensure port 5000 is free before launching flutter web runner
   if (Platform.isWindows) {
+    bool portBusy = false;
     try {
       final checkSocket = await ServerSocket.bind('127.0.0.1', 5000);
       await checkSocket.close();
     } catch (_) {
+      portBusy = true;
+    }
+    if (!portBusy) {
+      try {
+        final check6 = await ServerSocket.bind('::1', 5000);
+        await check6.close();
+      } catch (_) {
+        portBusy = true;
+      }
+    }
+    if (portBusy) {
       stdout.writeln('[WatchRun] Port 5000 busy; freeing port from orphan process...');
       try {
         Process.runSync('powershell', [
@@ -34,7 +46,7 @@ void main(List<String> args) async {
           '-Command',
           r'Get-NetTCPConnection -LocalPort 5000 -ErrorAction SilentlyContinue | ForEach-Object { Stop-Process -Id $_.OwningProcess -Force -ErrorAction SilentlyContinue }',
         ]);
-        await Future.delayed(const Duration(milliseconds: 600));
+        await Future.delayed(const Duration(milliseconds: 800));
       } catch (_) {}
     }
   }

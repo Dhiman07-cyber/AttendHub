@@ -11,16 +11,21 @@ import 'providers/holidays_provider.dart';
 import '../../shared/widgets/app_toast.dart';
 
 
+import '../../shared/widgets/liquid_glass_card.dart';
+import '../setup/academic_setup_screen.dart';
+
 class HolidaysScreen extends ConsumerWidget {
   final VoidCallback onOpenDrawer;
   final VoidCallback onNavigateToCalendar;
   final VoidCallback? onNavigateToProfile;
+  final VoidCallback? onOpenSetup;
 
   const HolidaysScreen({
     super.key,
     required this.onOpenDrawer,
     required this.onNavigateToCalendar,
     this.onNavigateToProfile,
+    this.onOpenSetup,
   });
 
   void _showAddHolidaySheet(BuildContext context, WidgetRef ref) {
@@ -166,117 +171,133 @@ class HolidaysScreen extends ConsumerWidget {
 
             const SizedBox(height: 6),
 
-            // Action Cards: Add Holiday & Upload Holiday List
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: InkWell(
-                      onTap: () => _showAddHolidaySheet(context, ref),
-                      borderRadius: BorderRadius.circular(16),
-                      child: Container(
-                        padding: const EdgeInsets.all(14),
-                        decoration: BoxDecoration(
-                          color: AppColors.terracottaLight,
+            if (state.holidays.isEmpty && !state.isLoading) ...[
+              _buildEmptyTimetableCard(context, ref),
+            ] else ...[
+              // Action Cards: Add Holidays & Upload Holidays (EQUAL HEIGHT VIA IntrinsicHeight)
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: IntrinsicHeight(
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Expanded(
+                        child: InkWell(
+                          onTap: () => _showAddHolidaySheet(context, ref),
                           borderRadius: BorderRadius.circular(16),
-                          border: Border.all(
-                              color:
-                                  AppColors.terracotta.withValues(alpha: 0.3)),
-                        ),
-                        child: Row(
-                          children: [
-                            Container(
-                              width: 32,
-                              height: 32,
-                              decoration: const BoxDecoration(
-                                color: AppColors.terracotta,
-                                shape: BoxShape.circle,
-                              ),
-                              child: const Icon(Icons.add,
-                                  color: Colors.white, size: 18),
+                          child: Container(
+                            padding: const EdgeInsets.all(14),
+                            decoration: BoxDecoration(
+                              color: AppColors.terracottaLight,
+                              borderRadius: BorderRadius.circular(16),
+                              border: Border.all(
+                                  color:
+                                      AppColors.terracotta.withValues(alpha: 0.3)),
                             ),
-                            const SizedBox(width: 10),
-                            const Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    'Add Holiday',
-                                    style: TextStyle(
-                                        fontWeight: FontWeight.w700,
-                                        fontSize: 13,
-                                        color: AppColors.terracotta),
+                            child: Row(
+                              children: [
+                                Container(
+                                  width: 32,
+                                  height: 32,
+                                  decoration: const BoxDecoration(
+                                    color: AppColors.terracotta,
+                                    shape: BoxShape.circle,
                                   ),
-                                  Text(
-                                    'Manual Entry',
-                                    style: TextStyle(
-                                        fontSize: 10,
-                                        color: AppColors.inkMuted),
+                                  child: const Icon(Icons.add,
+                                      color: Colors.white, size: 18),
+                                ),
+                                const SizedBox(width: 10),
+                                const Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: [
+                                      Text(
+                                        'Add Holidays',
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: TextStyle(
+                                            fontWeight: FontWeight.w700,
+                                            fontSize: 13,
+                                            color: AppColors.terracotta),
+                                      ),
+                                      Text(
+                                        'Manual Entry',
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: TextStyle(
+                                            fontSize: 10,
+                                            color: AppColors.inkMuted),
+                                      ),
+                                    ],
                                   ),
-                                ],
-                              ),
+                                ),
+                              ],
                             ),
-                          ],
+                          ),
                         ),
                       ),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: InkWell(
-                      onTap: () {
-                        AppToast.showComingSoon(context, feature: 'Upload Holiday List');
-                      },
-                      borderRadius: BorderRadius.circular(16),
-                      child: Container(
-                        padding: const EdgeInsets.all(14),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFFEFF5FA),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: InkWell(
+                          onTap: () {
+                            AppToast.showComingSoon(context, feature: 'Upload Holidays');
+                          },
                           borderRadius: BorderRadius.circular(16),
-                          border: Border.all(color: const Color(0xFFD4E3EF)),
-                        ),
-                        child: Row(
-                          children: [
-                            Container(
-                              width: 32,
-                              height: 32,
-                              decoration: const BoxDecoration(
-                                color: AppColors.ocean,
-                                shape: BoxShape.circle,
-                              ),
-                              child: const Icon(Icons.file_upload_outlined,
-                                  color: Colors.white, size: 18),
+                          child: Container(
+                            padding: const EdgeInsets.all(14),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFEFF5FA),
+                              borderRadius: BorderRadius.circular(16),
+                              border: Border.all(color: const Color(0xFFD4E3EF)),
                             ),
-                            const SizedBox(width: 10),
-                            const Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    'Upload Holiday List',
-                                    style: TextStyle(
-                                        fontWeight: FontWeight.w700,
-                                        fontSize: 13,
-                                        color: AppColors.ocean),
+                            child: Row(
+                              children: [
+                                Container(
+                                  width: 32,
+                                  height: 32,
+                                  decoration: const BoxDecoration(
+                                    color: AppColors.ocean,
+                                    shape: BoxShape.circle,
                                   ),
-                                  Text(
-                                    'Image / PDF (OCR)',
-                                    style: TextStyle(
-                                        fontSize: 10,
-                                        color: AppColors.inkMuted),
+                                  child: const Icon(Icons.file_upload_outlined,
+                                      color: Colors.white, size: 18),
+                                ),
+                                const SizedBox(width: 10),
+                                const Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: [
+                                      Text(
+                                        'Upload Holidays',
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: TextStyle(
+                                            fontWeight: FontWeight.w700,
+                                            fontSize: 13,
+                                            color: AppColors.ocean),
+                                      ),
+                                      Text(
+                                        'Image / PDF (OCR)',
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: TextStyle(
+                                            fontSize: 10,
+                                            color: AppColors.inkMuted),
+                                      ),
+                                    ],
                                   ),
-                                ],
-                              ),
+                                ),
+                              ],
                             ),
-                          ],
+                          ),
                         ),
                       ),
-                    ),
+                    ],
                   ),
-                ],
+                ),
               ),
-            ),
 
             const SizedBox(height: 14),
 
@@ -442,6 +463,80 @@ class HolidaysScreen extends ConsumerWidget {
                 ),
               ),
             ],
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildEmptyTimetableCard(BuildContext context, WidgetRef ref) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      child: LiquidGlassCard(
+        padding: const EdgeInsets.all(28),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 56,
+              height: 56,
+              decoration: BoxDecoration(
+                color: AppColors.terracotta.withValues(alpha: 0.12),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(
+                Icons.calendar_view_week_rounded,
+                color: AppColors.terracotta,
+                size: 28,
+              ),
+            ),
+            const SizedBox(height: 16),
+            const Text(
+              "Your timetable isn't set up yet.",
+              style: TextStyle(
+                fontWeight: FontWeight.w800,
+                fontSize: 16,
+                color: AppColors.ink,
+              ),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 6),
+            const Text(
+              'Add your holidays and term schedule in Academic Setup to begin tracking off-days.',
+              style: TextStyle(fontSize: 12, color: AppColors.inkMuted),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 20),
+            ElevatedButton.icon(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.terracotta,
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+              icon: const Icon(Icons.tune_rounded, size: 18),
+              label: const Text(
+                'Set Up Timetable',
+                style: TextStyle(fontWeight: FontWeight.w700),
+              ),
+              onPressed: () {
+                if (onOpenSetup != null) {
+                  onOpenSetup!();
+                } else {
+                  Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (_) => AcademicSetupScreen(
+                        onComplete: () => ref.read(holidaysProvider.notifier).loadHolidays(),
+                        onCancel: () => Navigator.of(context).pop(),
+                      ),
+                    ),
+                  );
+                }
+              },
+            ),
           ],
         ),
       ),

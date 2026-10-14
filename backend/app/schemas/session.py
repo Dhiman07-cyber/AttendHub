@@ -45,3 +45,6 @@ class ClassSessionOut(BaseModel):
     # Attendance status for this session
     attendance_status: Optional[str] = None # ATTENDED, ABSENT, NOT_HELD, or None (Pending)
     attendance_id: Optional[str] = None
+    
+    # Class type: THEORY, LAB, UNSPECIFIED (None = legacy/unclassified)
+    class_type: Optional[str] = None

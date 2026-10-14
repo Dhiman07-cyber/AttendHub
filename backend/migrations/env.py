@@ -18,7 +18,8 @@ if config.config_file_name is not None:
 target_metadata = Base.metadata
 
 def run_migrations_offline() -> None:
-    url = settings.DATABASE_URL.replace("+aiosqlite", "").replace("+asyncpg", "")
+    # Convert async driver to sync driver for migrations
+    url = settings.DATABASE_URL.replace("+aiosqlite", "").replace("+asyncpg", "+psycopg2")
     context.configure(
         url=url,
         target_metadata=target_metadata,
@@ -30,7 +31,8 @@ def run_migrations_offline() -> None:
         context.run_migrations()
 
 def run_migrations_online() -> None:
-    sync_url = settings.DATABASE_URL.replace("+aiosqlite", "").replace("+asyncpg", "")
+    # Convert async driver to sync driver for migrations
+    sync_url = settings.DATABASE_URL.replace("+aiosqlite", "").replace("+asyncpg", "+psycopg2")
     configuration = config.get_section(config.config_ini_section) or {}
     configuration["sqlalchemy.url"] = sync_url
     

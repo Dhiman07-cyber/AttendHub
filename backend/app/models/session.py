@@ -18,6 +18,9 @@ class ClassSession(Base):
     room: Mapped[str] = mapped_column(String(50), nullable=True)
     session_status: Mapped[str] = mapped_column(String(20), default="SCHEDULED") # SCHEDULED, HELD, CANCELLED, HOLIDAY, NOT_HELD
     is_extra: Mapped[bool] = mapped_column(Boolean, default=False)
+    # Snapshotted from timetable_entries.class_type at session creation time.
+    # NULL treated as UNSPECIFIED for legacy rows.
+    class_type: Mapped[str] = mapped_column(String(20), nullable=True, default=None)
     
     # Relationships
     semester = relationship("Semester", back_populates="class_sessions")
