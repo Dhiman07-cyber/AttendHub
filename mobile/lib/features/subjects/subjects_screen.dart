@@ -112,6 +112,8 @@ class SubjectsScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final state = ref.watch(subjectsProvider);
     final semState = ref.watch(semestersProvider);
+    final isInitialLoading =
+        (!state.hasLoaded || state.isLoading) && state.subjects.isEmpty;
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -128,12 +130,14 @@ class SubjectsScreen extends ConsumerWidget {
                   '${semState.activeSemester?.label ?? 'Active Semester'} • Courses',
               showActions: false,
               topOffset: 76,
-              isLoading: state.isLoading && state.subjects.isEmpty,
+              isLoading: isInitialLoading,
             ),
 
             const SizedBox(height: 18),
 
-            if (state.subjects.isEmpty && !state.isLoading) ...[
+            if (isInitialLoading) ...[
+              _buildSubjectsSkeleton(context),
+            ] else if (state.subjects.isEmpty) ...[
               _buildEmptyTimetableCard(context, ref),
             ] else ...[
               // Search Bar
@@ -415,6 +419,80 @@ class SubjectsScreen extends ConsumerWidget {
             ],
 
             const SizedBox(height: 24),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSubjectsSkeleton(BuildContext context) {
+    return ShimmerLoading(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Search Bar Skeleton
+            Container(
+              height: 48,
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: AppColors.divider),
+              ),
+            ),
+            const SizedBox(height: 14),
+
+            // 2 Action Cards Skeleton
+            IntrinsicHeight(
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Expanded(
+                    child: Container(
+                      height: 58,
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(color: AppColors.divider),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Container(
+                      height: 58,
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(color: AppColors.divider),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 14),
+
+            // Filter Tabs Skeleton
+            Container(
+              height: 36,
+              width: 180,
+              decoration: BoxDecoration(
+                color: const Color(0xFFF1EBE6),
+                borderRadius: BorderRadius.circular(14),
+              ),
+            ),
+            const SizedBox(height: 14),
+
+            // 4 Subject Cards Skeleton
+            ...List.generate(
+              4,
+              (i) => Padding(
+                padding: const EdgeInsets.only(bottom: 12),
+                child: _buildSubjectSkeletonCard(),
+              ),
+            ),
           ],
         ),
       ),

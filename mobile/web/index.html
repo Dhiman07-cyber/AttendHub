@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html>
+
 <head>
   <!--
     If you are serving your web app in a path other than the root, change the
@@ -27,27 +28,25 @@
   <link rel="apple-touch-icon" href="icons/Icon-192.png">
 
   <!-- Favicon -->
-  <link rel="icon" type="image/x-icon" href="favicon.ico"/>
-  <link rel="icon" type="image/png" sizes="64x64" href="favicon.png"/>
-
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-
+  <link rel="icon" type="image/x-icon" href="favicon.ico" />
+  <link rel="icon" type="image/png" sizes="64x64" href="favicon.png" />
   <!-- Google Sign-In Web Client ID (Required by Google Identity Services on Web) -->
-  <meta name="google-signin-client_id" content="116527451867-n5nghihimlb6t326l6hgf13ch4ad83uh.apps.googleusercontent.com">
+  <meta name="google-signin-client_id"
+    content="116527451867-n5nghihimlb6t326l6hgf13ch4ad83uh.apps.googleusercontent.com">
 
   <title>AttendiFy</title>
   <link rel="manifest" href="manifest.json">
 
   <!-- Guard against Flutter Web negative ViewInsets assertion when zooming or using DevTools Device Mode -->
   <script>
-    (function() {
+    (function () {
       try {
         if (typeof VisualViewport !== 'undefined' && VisualViewport.prototype) {
           var heightDesc = Object.getOwnPropertyDescriptor(VisualViewport.prototype, 'height');
           if (heightDesc && heightDesc.get) {
             var origHeight = heightDesc.get;
             Object.defineProperty(VisualViewport.prototype, 'height', {
-              get: function() {
+              get: function () {
                 var h = origHeight.call(this);
                 var maxH = window.innerHeight;
                 return (maxH && h > maxH) ? maxH : h;
@@ -60,7 +59,7 @@
           if (widthDesc && widthDesc.get) {
             var origWidth = widthDesc.get;
             Object.defineProperty(VisualViewport.prototype, 'width', {
-              get: function() {
+              get: function () {
                 var w = origWidth.call(this);
                 var maxW = window.innerWidth;
                 return (maxW && w > maxW) ? maxW : w;
@@ -77,12 +76,16 @@
   </script>
 
   <style>
-    *, *::before, *::after {
+    *,
+    *::before,
+    *::after {
       -webkit-tap-highlight-color: transparent !important;
       -webkit-tap-highlight-color: rgba(0, 0, 0, 0) !important;
       outline: none !important;
     }
-    html, body {
+
+    html,
+    body {
       margin: 0;
       padding: 0;
       width: 100%;
@@ -92,13 +95,17 @@
       -webkit-tap-highlight-color: transparent !important;
       user-select: none;
     }
-    flt-glass-pane, flutter-view, canvas {
+
+    flt-glass-pane,
+    flutter-view,
+    canvas {
       -webkit-tap-highlight-color: transparent !important;
       outline: none !important;
       -webkit-touch-callout: none !important;
     }
   </style>
 </head>
+
 <body>
   <!--
     You can customize the "flutter_bootstrap.js" script.
@@ -110,4 +117,5 @@
   -->
   <script src="flutter_bootstrap.js" async></script>
 </body>
+
 </html>

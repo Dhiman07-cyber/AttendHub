@@ -43,6 +43,7 @@ final dashboardProvider = FutureProvider<DashboardOverviewModel>((ref) async {
 class SelectedDateAttendanceState {
   final DateTime selectedDate;
   final bool isLoading;
+  final bool hasLoaded;
   final bool isSaving;
   final String? errorMessage;
   final bool isHoliday;
@@ -57,6 +58,7 @@ class SelectedDateAttendanceState {
   SelectedDateAttendanceState({
     required this.selectedDate,
     this.isLoading = false,
+    this.hasLoaded = true,
     this.isSaving = false,
     this.errorMessage,
     this.isHoliday = false,
@@ -75,6 +77,7 @@ class SelectedDateAttendanceState {
   SelectedDateAttendanceState copyWith({
     DateTime? selectedDate,
     bool? isLoading,
+    bool? hasLoaded,
     bool? isSaving,
     String? errorMessage,
     bool? isHoliday,
@@ -89,6 +92,7 @@ class SelectedDateAttendanceState {
     return SelectedDateAttendanceState(
       selectedDate: selectedDate ?? this.selectedDate,
       isLoading: isLoading ?? this.isLoading,
+      hasLoaded: hasLoaded ?? this.hasLoaded,
       isSaving: isSaving ?? this.isSaving,
       errorMessage: errorMessage,
       isHoliday: isHoliday ?? this.isHoliday,
@@ -115,20 +119,23 @@ class SelectedDateAttendanceNotifier extends StateNotifier<SelectedDateAttendanc
     bool loadOnInit = true,
   ])  : _client = client ?? ApiClient(),
         _storage = storage ?? LocalStorage(),
-        super(_initialState()) {
+        super(_initialState(loadOnInit: loadOnInit && _ref != null)) {
     if (loadOnInit && _ref != null) {
       loadDaySessions();
     }
   }
 
-  static SelectedDateAttendanceState _initialState() {
+  static SelectedDateAttendanceState _initialState({bool loadOnInit = true}) {
     final now = DateTime.now();
     final win = _evaluateEditWindow(now);
     return SelectedDateAttendanceState(
       selectedDate: now,
+      isLoading: loadOnInit,
+      hasLoaded: !loadOnInit,
       isEditable: win.isEditable,
       isFuture: win.isFuture,
       isExpired: win.isExpired,
+      hasTimetableSetup: true,
     );
   }
 
@@ -223,6 +230,7 @@ class SelectedDateAttendanceNotifier extends StateNotifier<SelectedDateAttendanc
         }
         state = state.copyWith(
           isLoading: false,
+          hasLoaded: true,
           sessions: cachedSessions,
           isHoliday: cachedHoliday,
           holidayName: cachedHolidayName,
@@ -312,6 +320,7 @@ class SelectedDateAttendanceNotifier extends StateNotifier<SelectedDateAttendanc
       if (!mounted) return;
       state = state.copyWith(
         isLoading: false,
+        hasLoaded: true,
         sessions: sessions,
         isHoliday: isHoliday,
         holidayName: holidayName,
@@ -322,6 +331,7 @@ class SelectedDateAttendanceNotifier extends StateNotifier<SelectedDateAttendanc
       if (!mounted) return;
       state = state.copyWith(
         isLoading: false,
+        hasLoaded: true,
         errorMessage: state.sessions.isEmpty ? e.toString() : null,
       );
     }
@@ -355,6 +365,23 @@ class SelectedDateAttendanceNotifier extends StateNotifier<SelectedDateAttendanc
     }
 
     if (!mounted) return;
+    state = state.copyWith(draftMarks: updated);
+    _persistDraft(updated);
+  }
+
+  void markAllAttended([List<dynamic>? fallbackSessions]) {
+    if (!mounted || !state.isEditable) return;
+    final sessionsToMark = state.sessions.isNotEmpty
+        ? state.sessions
+        : (fallbackSessions != null ? fallbackSessions.whereType<ClassSessionModel>().toList() : <ClassSessionModel>[]);
+    if (sessionsToMark.isEmpty) return;
+
+    final updated = Map<String, String>.from(state.draftMarks);
+    for (final s in sessionsToMark) {
+      final k = _getSlotKey(s);
+      updated[k] = 'ATTENDED';
+    }
+
     state = state.copyWith(draftMarks: updated);
     _persistDraft(updated);
   }

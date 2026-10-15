@@ -44,8 +44,8 @@ def test_zero_conducted_safe_behavior():
     assert m["status"] == "NO_DATA"
     assert m["status_label"] == "No attendance data yet"
     assert m["max_safe_absences"] == 0
-    assert m["classes_needed_for_min"] == 0
-    assert m["classes_needed_for_target"] == 0
+    assert m["classes_needed_for_min"] is None  # Cannot calculate for zero data
+    assert m["classes_needed_for_target"] is None  # Cannot calculate for zero data
 
 def test_time_status_chronology_and_untimed_stability():
     # Timed session: 09:00 - 10:00 with reference time 11:30 -> Done

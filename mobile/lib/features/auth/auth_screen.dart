@@ -134,6 +134,21 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
             // Banner height dynamically scales so the campus illustration is beautifully visible
             final bannerHeight =
                 (availableHeight * 0.28).clamp(185.0, 245.0) + topPadding;
+            final bottomPadding = MediaQuery.of(context).padding.bottom;
+            final formMinHeight =
+                (availableHeight - bannerHeight).clamp(0.0, double.infinity);
+
+            // Proportional spacing calculation: distribute extra vertical room naturally
+            final baseFormHeight = _isSignUp ? 460.0 : 390.0;
+            final extraHeight =
+                (formMinHeight - baseFormHeight).clamp(0.0, _isSignUp ? 110.0 : 90.0);
+
+            final spacingHeaderToFields = 10.0 + extraHeight * 0.14;
+            final spacingBetweenFields = 9.0 + extraHeight * 0.08;
+            final spacingFieldsToSubmit = 10.0 + extraHeight * 0.14;
+            final spacingSubmitToOr = 9.0 + extraHeight * 0.10;
+            final spacingOrToGoogle = 9.0 + extraHeight * 0.10;
+            final spacingGoogleToFooter = 12.0 + extraHeight * 0.32;
 
             return SingleChildScrollView(
               physics: const ClampingScrollPhysics(),
@@ -282,10 +297,16 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
                   ),
 
                   // -----------------------------------------------------------
-                  // FORM BODY
+                  // FORM BODY: Nicely proportioned containers, comfortable icons,
+                  // and balanced vertical breathing space for any device height
                   // -----------------------------------------------------------
                   Padding(
-                    padding: const EdgeInsets.fromLTRB(22, 4, 22, 16),
+                    padding: EdgeInsets.fromLTRB(
+                      24,
+                      4,
+                      24,
+                      (bottomPadding + 18).clamp(18.0, 36.0),
+                    ),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
@@ -294,14 +315,14 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
                           child: Text(
                             _isSignUp ? 'Create Account' : 'Welcome Back',
                             style: AppTypography.displayLarge.copyWith(
-                              fontSize: 23,
-                              height: 1.15,
+                              fontSize: 25,
+                              height: 1.18,
                               fontWeight: FontWeight.w800,
                               fontFamily: 'serif',
                             ),
                           ),
                         ),
-                        const SizedBox(height: 3),
+                        const SizedBox(height: 4),
                         Center(
                           child: Text(
                             _isSignUp
@@ -309,11 +330,11 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
                                 : 'Log in to continue to AttendiFy',
                             style: AppTypography.bodyMedium.copyWith(
                               color: AppColors.inkMuted,
-                              fontSize: 12.5,
+                              fontSize: 13.5,
                             ),
                           ),
                         ),
-                        const SizedBox(height: 12),
+                        SizedBox(height: spacingHeaderToFields),
 
                         // Form Fields with Google Password Manager Autofill
                         AutofillGroup(
@@ -327,13 +348,17 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
                                   controller: _nameController,
                                   textInputAction: TextInputAction.next,
                                   autofillHints: const [AutofillHints.name],
+                                  contentPadding: const EdgeInsets.symmetric(
+                                    horizontal: 16,
+                                    vertical: 16,
+                                  ),
                                   prefixIcon: const Icon(
                                     Icons.person_outline_rounded,
-                                    size: 19,
+                                    size: 22,
                                     color: AppColors.inkMuted,
                                   ),
                                 ),
-                                const SizedBox(height: 10),
+                                SizedBox(height: spacingBetweenFields),
                               ],
 
                               AppTextField(
@@ -346,13 +371,17 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
                                   AutofillHints.email,
                                   AutofillHints.username,
                                 ],
+                                contentPadding: const EdgeInsets.symmetric(
+                                  horizontal: 16,
+                                  vertical: 16,
+                                ),
                                 prefixIcon: const Icon(
                                   Icons.mail_outline_rounded,
-                                  size: 19,
+                                  size: 22,
                                   color: AppColors.inkMuted,
                                 ),
                               ),
-                              const SizedBox(height: 10),
+                              SizedBox(height: spacingBetweenFields),
 
                               AppTextField(
                                 label: 'Password',
@@ -364,9 +393,13 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
                                     ? const [AutofillHints.newPassword]
                                     : const [AutofillHints.password],
                                 onEditingComplete: _submit,
+                                contentPadding: const EdgeInsets.symmetric(
+                                  horizontal: 16,
+                                  vertical: 16,
+                                ),
                                 prefixIcon: const Icon(
                                   Icons.lock_outline_rounded,
-                                  size: 19,
+                                  size: 22,
                                   color: AppColors.inkMuted,
                                 ),
                                 suffixIcon: IconButton(
@@ -374,7 +407,7 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
                                     _obscurePassword
                                         ? Icons.visibility_outlined
                                         : Icons.visibility_off_outlined,
-                                    size: 19,
+                                    size: 22,
                                     color: AppColors.inkMuted,
                                   ),
                                   onPressed: () {
@@ -390,7 +423,7 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
 
                         // Forgot Password Link (Log In mode only)
                         if (!_isSignUp) ...[
-                          const SizedBox(height: 2),
+                          const SizedBox(height: 4),
                           Align(
                             alignment: Alignment.centerRight,
                             child: TextButton(
@@ -402,7 +435,7 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
                               },
                               style: TextButton.styleFrom(
                                 padding: const EdgeInsets.symmetric(
-                                    horizontal: 4, vertical: 2),
+                                    horizontal: 6, vertical: 4),
                                 minimumSize: Size.zero,
                                 tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                               ),
@@ -411,24 +444,24 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
                                 style: AppTypography.bodySmall.copyWith(
                                   color: const Color(0xFFDE6854),
                                   fontWeight: FontWeight.w700,
-                                  fontSize: 12,
+                                  fontSize: 13,
                                 ),
                               ),
                             ),
                           ),
                         ],
 
-                        const SizedBox(height: 10),
+                        SizedBox(height: spacingFieldsToSubmit),
 
                         // Submit Button
                         AppButton(
                           label: _isSignUp ? 'Create Account' : 'Log In',
-                          isLoading: authState.isLoading,
+                          isLoading: authState.isSubmitting,
                           padding: const EdgeInsets.symmetric(
-                              vertical: 13, horizontal: 20),
-                          onPressed: _submit,
+                              vertical: 15, horizontal: 20),
+                          onPressed: (authState.isSubmitting || authState.isGoogleLoading) ? null : _submit,
                         ),
-                        const SizedBox(height: 10),
+                        SizedBox(height: spacingSubmitToOr),
 
                         // "or" Divider
                         const Row(
@@ -437,11 +470,11 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
                                 child:
                                     Divider(color: Color(0xFFEADBCE), thickness: 1)),
                             Padding(
-                              padding: EdgeInsets.symmetric(horizontal: 12),
+                              padding: EdgeInsets.symmetric(horizontal: 14),
                               child: Text(
                                 'or',
                                 style: TextStyle(
-                                  fontSize: 12,
+                                  fontSize: 13,
                                   color: AppColors.inkMuted,
                                   fontWeight: FontWeight.w500,
                                 ),
@@ -452,16 +485,27 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
                                     Divider(color: Color(0xFFEADBCE), thickness: 1)),
                           ],
                         ),
-                        const SizedBox(height: 10),
+                        SizedBox(height: spacingOrToGoogle),
 
                         // Social Login Button (Google only)
                         _buildSocialButton(
-                          logo: BrandIcons.google(size: 19),
-                          label: 'Continue with Google',
-                          onTap: authState.isLoading ? () {} : _handleGoogleSignIn,
+                          logo: authState.isGoogleLoading
+                              ? const SizedBox(
+                                  width: 18,
+                                  height: 18,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    valueColor: AlwaysStoppedAnimation<Color>(AppColors.terracotta),
+                                  ),
+                                )
+                              : BrandIcons.google(size: 22),
+                          label: authState.isGoogleLoading ? 'Processing...' : 'Continue with Google',
+                          onTap: (authState.isGoogleLoading || authState.isSubmitting)
+                              ? () {}
+                              : _handleGoogleSignIn,
                         ),
 
-                        const SizedBox(height: 12),
+                        SizedBox(height: spacingGoogleToFooter),
 
                         // Switch between Log In and Sign Up (Horizontally Centered)
                         Center(
@@ -473,7 +517,7 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
                                 _isSignUp
                                     ? 'Already have an account? '
                                     : "Don't have an account? ",
-                                style: AppTypography.bodySmall.copyWith(fontSize: 12.5),
+                                style: AppTypography.bodySmall.copyWith(fontSize: 13),
                               ),
                               GestureDetector(
                                 onTap: () {
@@ -487,7 +531,7 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
                                   style: AppTypography.bodySmall.copyWith(
                                     color: const Color(0xFFDE6854),
                                     fontWeight: FontWeight.w800,
-                                    fontSize: 12.5,
+                                    fontSize: 13,
                                   ),
                                 ),
                               ),
@@ -516,7 +560,7 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
       borderRadius: AppRadii.radiusXl,
       child: Container(
         width: double.infinity,
-        padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+        padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 16),
         decoration: BoxDecoration(
           color: Colors.white,
           borderRadius: AppRadii.radiusXl,

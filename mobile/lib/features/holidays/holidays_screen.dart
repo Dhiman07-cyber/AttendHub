@@ -12,6 +12,7 @@ import '../../shared/widgets/app_toast.dart';
 
 
 import '../../shared/widgets/liquid_glass_card.dart';
+import '../../shared/widgets/shimmer_skeleton.dart';
 import '../setup/academic_setup_screen.dart';
 
 class HolidaysScreen extends ConsumerWidget {
@@ -152,6 +153,9 @@ class HolidaysScreen extends ConsumerWidget {
     final state = ref.watch(holidaysProvider);
     final semState = ref.watch(semestersProvider);
 
+    final isInitialLoading =
+        (!state.hasLoaded || state.isLoading) && state.holidays.isEmpty;
+
     return Scaffold(
       backgroundColor: AppColors.background,
       body: SingleChildScrollView(
@@ -167,11 +171,14 @@ class HolidaysScreen extends ConsumerWidget {
                   '${semState.activeSemester?.label ?? 'Active Semester'} • Holidays',
               showActions: false,
               topOffset: 76,
+              isLoading: isInitialLoading,
             ),
 
             const SizedBox(height: 6),
 
-            if (state.holidays.isEmpty && !state.isLoading) ...[
+            if (isInitialLoading) ...[
+              _buildHolidaysSkeleton(context),
+            ] else if (state.holidays.isEmpty) ...[
               _buildEmptyTimetableCard(context, ref),
             ] else ...[
               // Action Cards: Add Holidays & Upload Holidays (EQUAL HEIGHT VIA IntrinsicHeight)
@@ -464,6 +471,106 @@ class HolidaysScreen extends ConsumerWidget {
               ),
             ],
             ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildHolidaysSkeleton(BuildContext context) {
+    return ShimmerLoading(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // 2 Action Cards Skeleton
+            IntrinsicHeight(
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Expanded(
+                    child: Container(
+                      height: 58,
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(color: AppColors.divider),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Container(
+                      height: 58,
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(color: AppColors.divider),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 16),
+
+            // Filter Tabs Skeleton
+            Container(
+              height: 36,
+              width: 220,
+              decoration: BoxDecoration(
+                color: const Color(0xFFF1EBE6),
+                borderRadius: BorderRadius.circular(14),
+              ),
+            ),
+            const SizedBox(height: 16),
+
+            // Section Header Skeleton
+            const SkeletonBox.text(width: 140, height: 16),
+            const SizedBox(height: 12),
+
+            // Holiday List Skeletons
+            ...List.generate(
+              4,
+              (i) => Padding(
+                padding: const EdgeInsets.only(bottom: 10),
+                child: Container(
+                  padding: const EdgeInsets.all(14),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(color: AppColors.divider),
+                  ),
+                  child: const Row(
+                    children: [
+                      SkeletonBox(
+                        width: 44,
+                        height: 44,
+                        borderRadius: BorderRadius.all(Radius.circular(12)),
+                      ),
+                      SizedBox(width: 14),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            SkeletonBox.text(width: 140, height: 14),
+                            SizedBox(height: 6),
+                            SkeletonBox(
+                              width: 60,
+                              height: 18,
+                              borderRadius: BorderRadius.all(Radius.circular(6)),
+                            ),
+                          ],
+                        ),
+                      ),
+                      SizedBox(width: 8),
+                      SkeletonBox.text(width: 40, height: 12),
+                    ],
+                  ),
+                ),
+              ),
+            ),
           ],
         ),
       ),

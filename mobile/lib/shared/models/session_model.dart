@@ -17,6 +17,7 @@ class ClassSessionModel {
   final String? timeStatus; // "Done", "Now", "Upcoming", null
   String? attendanceStatus; // "ATTENDED", "ABSENT", "NOT_HELD", null
   final String? attendanceId;
+  final String? classType;
 
   ClassSessionModel({
     required this.id,
@@ -37,7 +38,16 @@ class ClassSessionModel {
     this.timeStatus,
     this.attendanceStatus,
     this.attendanceId,
+    this.classType,
   });
+
+  String get displayClassType {
+    if (classType == null) return 'Others';
+    final upper = classType!.trim().toUpperCase();
+    if (upper == 'THEORY') return 'Theory';
+    if (upper == 'LAB') return 'Lab';
+    return 'Others';
+  }
 
   factory ClassSessionModel.fromJson(Map<String, dynamic> json) {
     return ClassSessionModel(
@@ -59,6 +69,7 @@ class ClassSessionModel {
       timeStatus: json['time_status'],
       attendanceStatus: json['attendance_status'],
       attendanceId: json['attendance_id']?.toString(),
+      classType: json['class_type']?.toString(),
     );
   }
 }

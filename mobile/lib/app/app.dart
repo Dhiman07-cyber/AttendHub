@@ -251,7 +251,7 @@ class _AttendHubAppState extends ConsumerState<AttendHubApp> {
       scrollBehavior: const SmoothScrollBehavior(),
       home: Builder(
         builder: (context) {
-          if (authState.isLoading && !authState.isAuthenticated) {
+          if (authState.isInitialChecking && !authState.isAuthenticated) {
             return const Scaffold(
               backgroundColor: AppColors.background,
               body: Center(
@@ -333,66 +333,64 @@ class _AttendHubAppState extends ConsumerState<AttendHubApp> {
               drawer: null,
               body: Stack(
                 children: [
-                  // 1. Primary Tabs PageView - Always kept alive in background with isolated RepaintBoundary
-                  RepaintBoundary(
-                    child: FocusScope(
-                      canRequestFocus: _secondaryRoute == null,
-                      child: IgnorePointer(
-                        ignoring: _secondaryRoute != null,
-                        child: PageView(
-                          controller: _pageController,
-                          physics: const NeverScrollableScrollPhysics(),
-                          onPageChanged: (index) {
-                            setState(() {
-                              _activeTabIndex = index;
-                            });
-                            LocalStorage().saveNavState(
-                              tabIndex: index,
-                              secondaryRoute: null,
-                            );
-                          },
-                          children: [
-                            KeepAliveWrapper(
-                              child: DashboardScreen(
-                                onOpenDrawer: () {},
-                                onNavigateToProfile: () => _setNavState(secondaryRoute: 'profile'),
-                                onNavigateToToday: () => _setNavState(tabIndex: 1, clearSecondary: true),
-                                onNavigateToAnalytics: () => _setNavState(tabIndex: 2, clearSecondary: true),
-                                onNavigateToCalendar: () => _setNavState(tabIndex: 2, clearSecondary: true),
-                                onOpenSetup: () => _setNavState(secondaryRoute: 'setup'),
-                              ),
+                  // 1. Primary Tabs PageView - Always kept alive in background
+                  FocusScope(
+                    canRequestFocus: _secondaryRoute == null,
+                    child: IgnorePointer(
+                      ignoring: _secondaryRoute != null,
+                      child: PageView(
+                        controller: _pageController,
+                        physics: const NeverScrollableScrollPhysics(),
+                        onPageChanged: (index) {
+                          setState(() {
+                            _activeTabIndex = index;
+                          });
+                          LocalStorage().saveNavState(
+                            tabIndex: index,
+                            secondaryRoute: null,
+                          );
+                        },
+                        children: [
+                          KeepAliveWrapper(
+                            child: DashboardScreen(
+                              onOpenDrawer: () {},
+                              onNavigateToProfile: () => _setNavState(secondaryRoute: 'profile'),
+                              onNavigateToToday: () => _setNavState(tabIndex: 1, clearSecondary: true),
+                              onNavigateToAnalytics: () => _setNavState(tabIndex: 2, clearSecondary: true),
+                              onNavigateToCalendar: () => _setNavState(tabIndex: 2, clearSecondary: true),
+                              onOpenSetup: () => _setNavState(secondaryRoute: 'setup'),
                             ),
-                            KeepAliveWrapper(
-                              child: TodayScreen(
-                                onOpenDrawer: () {},
-                                onNavigateToProfile: () => _setNavState(secondaryRoute: 'profile'),
-                                onOpenSetup: () => _setNavState(secondaryRoute: 'setup'),
-                              ),
+                          ),
+                          KeepAliveWrapper(
+                            child: TodayScreen(
+                              onOpenDrawer: () {},
+                              onNavigateToProfile: () => _setNavState(secondaryRoute: 'profile'),
+                              onOpenSetup: () => _setNavState(secondaryRoute: 'setup'),
                             ),
-                            KeepAliveWrapper(
-                              child: AnalyticsScreen(
-                                onOpenDrawer: () {},
-                                onNavigateToProfile: () => _setNavState(secondaryRoute: 'profile'),
-                                onOpenSetup: () => _setNavState(secondaryRoute: 'setup'),
-                              ),
+                          ),
+                          KeepAliveWrapper(
+                            child: AnalyticsScreen(
+                              onOpenDrawer: () {},
+                              onNavigateToProfile: () => _setNavState(secondaryRoute: 'profile'),
+                              onOpenSetup: () => _setNavState(secondaryRoute: 'setup'),
                             ),
-                            KeepAliveWrapper(
-                              child: SubjectsScreen(
-                                onOpenDrawer: () {},
-                                onNavigateToProfile: () => _setNavState(secondaryRoute: 'profile'),
-                                onOpenSetup: () => _setNavState(secondaryRoute: 'setup'),
-                              ),
+                          ),
+                          KeepAliveWrapper(
+                            child: SubjectsScreen(
+                              onOpenDrawer: () {},
+                              onNavigateToProfile: () => _setNavState(secondaryRoute: 'profile'),
+                              onOpenSetup: () => _setNavState(secondaryRoute: 'setup'),
                             ),
-                            KeepAliveWrapper(
-                              child: HolidaysScreen(
-                                onOpenDrawer: () {},
-                                onNavigateToCalendar: () => _setNavState(tabIndex: 2, clearSecondary: true),
-                                onNavigateToProfile: () => _setNavState(secondaryRoute: 'profile'),
-                                onOpenSetup: () => _setNavState(secondaryRoute: 'setup'),
-                              ),
+                          ),
+                          KeepAliveWrapper(
+                            child: HolidaysScreen(
+                              onOpenDrawer: () {},
+                              onNavigateToCalendar: () => _setNavState(tabIndex: 2, clearSecondary: true),
+                              onNavigateToProfile: () => _setNavState(secondaryRoute: 'profile'),
+                              onOpenSetup: () => _setNavState(secondaryRoute: 'setup'),
                             ),
-                          ],
-                        ),
+                          ),
+                        ],
                       ),
                     ),
                   ),

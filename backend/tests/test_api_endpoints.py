@@ -45,21 +45,39 @@ async def test_full_api_flow():
         active_sem = next(s for s in semesters if s["is_active"])
         assert active_sem["semester_number"] == 5
 
-        # 5. List Subjects
+        # 5. List Subjects - fresh registration has 0 subjects (no mock defaults)
         sub_resp = await client.get("/api/v1/subjects", headers=headers)
         assert sub_resp.status_code == 200
         subjects = sub_resp.json()
-        assert len(subjects) == 6
-        sub_names = [s["name"] for s in subjects]
-        assert "Software Engineering" in sub_names
-        assert "Mathematics" in sub_names
+        assert len(subjects) == 0
+
+        # Create a test subject via API
+        create_sub_resp = await client.post(
+            "/api/v1/subjects",
+            json={"name": "Software Engineering", "code": "CS-501"},
+            headers=headers
+        )
+        assert create_sub_resp.status_code == 201
+        created_sub = create_sub_resp.json()
+
+        # Add an extra session for today
+        sess_resp = await client.post(
+            "/api/v1/sessions/extra",
+            json={
+                "subject_id": created_sub["id"],
+                "start_time": "10:00",
+                "end_time": "11:00",
+                "room": "LH-1"
+            },
+            headers=headers
+        )
+        assert sess_resp.status_code == 201
 
         # 6. Get Dashboard
         dash_resp = await client.get("/api/v1/dashboard", headers=headers)
         assert dash_resp.status_code == 200
         dash = dash_resp.json()
         assert dash["user_name"] == "Dhiman"
-        assert dash["overall_percentage"] is not None
         assert len(dash["today_sessions"]) >= 1
 
         # 7. Get Today's classes
@@ -82,9 +100,7 @@ async def test_full_api_flow():
         analytics_resp = await client.get("/api/v1/analytics/overview", headers=headers)
         assert analytics_resp.status_code == 200
         analytics = analytics_resp.json()
-        assert analytics["overall_percentage"] is not None
-        assert len(analytics["subjects"]) == 6
-        assert len(analytics["insights"]) >= 1
+        assert len(analytics["subjects"]) == 1
 
         # 10. Get Calendar
         cal_resp = await client.get("/api/v1/calendar?year=2026&month=10", headers=headers)
@@ -93,11 +109,19 @@ async def test_full_api_flow():
         assert cal["month_name"] == "October"
         assert len(cal["days"]) == 31
 
-        # 11. Get Holidays
+        # 11. Get Holidays - fresh user starts with 0 holidays (no mock defaults)
         hol_resp = await client.get("/api/v1/holidays", headers=headers)
         assert hol_resp.status_code == 200
         holidays = hol_resp.json()
-        assert len(holidays) >= 5
+        assert len(holidays) == 0
+
+        # Add a holiday via API
+        add_hol_resp = await client.post(
+            "/api/v1/holidays",
+            json={"title": "Mid-term Break", "start_date": "2026-10-20", "end_date": "2026-10-21"},
+            headers=headers
+        )
+        assert add_hol_resp.status_code == 201
 
 
 @pytest.mark.asyncio
@@ -213,8 +237,14 @@ async def test_update_semester_and_adjust_attendance():
         assert updated_sem["end_date"] == "2026-12-15"
 
         # 2. Test PUT /api/v1/subjects/{id}/attendance
-        subs = (await client.get("/api/v1/subjects", headers=headers)).json()
-        first_sub = subs[0]
+        # Create a test subject first since newly registered users have 0 default subjects
+        create_sub_resp = await client.post(
+            "/api/v1/subjects",
+            json={"name": "Software Engineering", "code": "CS-501"},
+            headers=headers
+        )
+        assert create_sub_resp.status_code == 201
+        first_sub = create_sub_resp.json()
         adjust_resp = await client.put(
             f"/api/v1/subjects/{first_sub['id']}/attendance",
             json={
@@ -239,6 +269,95 @@ async def test_update_semester_and_adjust_attendance():
             headers=headers
         )
         assert bad_resp.status_code == 400
+
+@pytest.mark.asyncio
+async def test_commit_academic_setup_with_unspecified_institution_and_break_slots():
+    """Verify that committing academic setup with empty institution/program succeeds cleanly."""
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        user_email = f"wizard_test_{uuid.uuid4().hex[:6]}@adtu.edu.in"
+        reg_resp = await client.post("/api/v1/auth/register", json={
+            "email": user_email,
+            "password": "Password123!",
+            "full_name": "Wizard Student",
+            "seed_demo_data": False
+        })
+        assert reg_resp.status_code == 201
+        token = reg_resp.json()["access_token"]
+        headers = {"Authorization": f"Bearer {token}"}
+
+        # Check initial setup-status
+        status_resp = await client.get("/api/v1/profile/setup-status", headers=headers)
+        assert status_resp.status_code == 200
+        assert status_resp.json()["setup_complete"] is False
+
+        # Post academic setup matching the exact user scenario:
+        # Empty / unspecified university and course, 1 subject, 1 weekly slot with break
+        setup_payload = {
+            "university_name": "",
+            "course_name": "",
+            "full_name": "Wizard Student",
+            "student_id_number": None,
+            "academic_duration_years": 4,
+            "academic_session_start": 2024,
+            "academic_session_end": 2028,
+            "semester_number": 1,
+            "semester_label": "",
+            "start_date": "2026-08-01",
+            "end_date": "2026-12-15",
+            "minimum_attendance": 75.0,
+            "personal_target": 75.0,
+            "low_attendance_alert": 70.0,
+            "subjects": [
+                {
+                    "name": "Data Structures",
+                    "code": "CS-101",
+                    "faculty_name": "Prof. Alan",
+                    "color": "#C96E5B"
+                }
+            ],
+            "timetable_entries": [
+                {
+                    "subject_name": "Data Structures",
+                    "day_of_week": 0,
+                    "start_time": "09:00",
+                    "end_time": "10:00",
+                    "room": "Room 101"
+                },
+                {
+                    "subject_name": "Break Time",
+                    "day_of_week": 0,
+                    "start_time": "12:00",
+                    "end_time": "13:00",
+                    "room": ""
+                }
+            ],
+            "holidays": [],
+            "starting_attendance": []
+        }
+
+        setup_resp = await client.post("/api/v1/profile/setup", json=setup_payload, headers=headers)
+        assert setup_resp.status_code == 200
+        prof_data = setup_resp.json()
+        assert prof_data["university_name"] == "Not specified"
+        assert prof_data["course_name"] == "Not specified"
+        assert prof_data["minimum_attendance"] == 75.0
+
+        # Verify setup-status is now COMPLETE
+        after_status = await client.get("/api/v1/profile/setup-status", headers=headers)
+        assert after_status.status_code == 200
+        assert after_status.json()["setup_complete"] is True
+        assert after_status.json()["subject_count"] == 1
+
+        # Verify setup-data loads the timetable entries including Break Time
+        setup_data_resp = await client.get("/api/v1/profile/setup-data", headers=headers)
+        assert setup_data_resp.status_code == 200
+        setup_data = setup_data_resp.json()
+        assert len(setup_data["subjects"]) == 1
+        assert len(setup_data["timetable_entries"]) == 2
+        entry_names = {t["subject_name"] for t in setup_data["timetable_entries"]}
+        assert "Data Structures" in entry_names
+        assert "Break Time" in entry_names
 
 
 

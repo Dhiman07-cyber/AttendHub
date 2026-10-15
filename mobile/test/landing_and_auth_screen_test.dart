@@ -111,12 +111,11 @@ void main() {
       // Now on Slide 2
       expect(find.text('2 / 3'), findsOneWidget);
       expect(find.textContaining('Smart Analytics'), findsWidgets);
-      // 5 Relatable Class 10 / College subjects check
+      // Side-by-side promotional subjects check
       expect(find.text('Mathematics'), findsOneWidget);
-      expect(find.text('Computer Applications'), findsOneWidget);
-      expect(find.text('English & Communication'), findsOneWidget);
-      expect(find.text('Science & Lab'), findsOneWidget);
-      expect(find.text('Social Studies'), findsOneWidget);
+      expect(find.text('Computer Apps'), findsOneWidget);
+      expect(find.textContaining('Need 2 classes'), findsOneWidget);
+      expect(find.textContaining('3 safe absences'), findsOneWidget);
       expect(find.byIcon(Icons.calculate_rounded), findsOneWidget);
       expect(find.text('Next'), findsOneWidget);
 
@@ -126,11 +125,11 @@ void main() {
 
       // Now on Slide 3
       expect(find.text('3 / 3'), findsOneWidget);
-      expect(find.textContaining('Plan Your Semester'), findsOneWidget);
-      expect(find.text('Upload Routine'), findsOneWidget);
-      expect(find.text('Add Manually'), findsOneWidget);
-      expect(find.text('Quick and easy setup'), findsOneWidget);
-      expect(find.textContaining('Holiday protection'), findsNothing);
+      expect(find.textContaining('Holiday Sync'), findsOneWidget);
+      expect(find.text('Smart Timetable Import'), findsOneWidget);
+      expect(find.text('Automatic Holiday Exclusions'), findsOneWidget);
+      expect(find.text('1-Tap Daily Marking'), findsOneWidget);
+      expect(find.byIcon(Icons.event_available_rounded), findsOneWidget);
       expect(find.text('Create Account'), findsOneWidget);
 
       // Test stepping backward from Slide 3 to Slide 2 using top bar back button

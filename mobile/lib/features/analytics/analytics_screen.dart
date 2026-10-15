@@ -33,6 +33,7 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen> {
 
   Widget _buildAnalyticsBody(AnalyticsOverviewModel data) {
     return SingleChildScrollView(
+      clipBehavior: Clip.hardEdge,
       padding: const EdgeInsets.only(bottom: 96),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -172,13 +173,21 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen> {
           if (cached != null) {
             try {
               final model = AnalyticsOverviewModel.fromJson(cached);
-              return _buildAnalyticsBody(model);
+              if (model.subjects.isNotEmpty) {
+                return _buildAnalyticsBody(model);
+              }
             } catch (_) {}
           }
           return _buildAnalyticsSkeleton(context);
         },
         error: (err, _) => Center(child: Text(err.toString())),
-        data: (data) => _buildAnalyticsBody(data),
+        data: (data) {
+          if (data.subjects.isEmpty &&
+              (analyticsAsync.isLoading || analyticsAsync.isRefreshing)) {
+            return _buildAnalyticsSkeleton(context);
+          }
+          return _buildAnalyticsBody(data);
+        },
       ),
     );
   }

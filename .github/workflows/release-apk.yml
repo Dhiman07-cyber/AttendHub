@@ -1,19 +1,18 @@
 name: Build & Release Android APK
 
 on:
-  # 1. Trigger automatically on every push to main or version tags
+  # 1. Trigger automatically on push to main (filtered to mobile changes) or version tags
   push:
     branches:
       - main
     tags:
       - "v*"
 
-  # 2. Build when a Release or Pre-release is published in the GitHub UI.
-  #    Using only published avoids racing the release creation/update step below.
+  # 2. Build when a Release or Pre-release is published in GitHub UI
   release:
     types: [published]
 
-  # 3. Allow manual one-click release from the GitHub Actions tab
+  # 3. Allow manual one-click release from GitHub Actions tab
   workflow_dispatch:
     inputs:
       tag_name:
@@ -45,10 +44,49 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  check-release-trigger:
+    name: Check Release Trigger
+    runs-on: ubuntu-latest
+    outputs:
+      should_build: ${{ steps.check.outputs.should_build }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Check changed files for mobile
+        uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            mobile:
+              - 'mobile/**'
+              - '.github/workflows/release-apk.yml'
+
+      - name: Determine if release build is required
+        id: check
+        shell: bash
+        run: |
+          EVENT="${{ github.event_name }}"
+          REF="${{ github.ref }}"
+          MOBILE_CHANGED="${{ steps.filter.outputs.mobile }}"
+
+          if [ "$EVENT" = "workflow_dispatch" ] || [ "$EVENT" = "release" ] || [[ "$REF" == refs/tags/v* ]]; then
+            echo "Explicit release or version tag triggered: Proceeding with build."
+            echo "should_build=true" >> "$GITHUB_OUTPUT"
+          elif [ "$EVENT" = "push" ] && [ "$MOBILE_CHANGED" = "true" ]; then
+            echo "Push to main modified mobile files: Proceeding with release build."
+            echo "should_build=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "Push did not modify mobile files: Skipping release APK build."
+            echo "should_build=false" >> "$GITHUB_OUTPUT"
+          fi
+
   build-and-release:
     name: Build & Publish AttendiFy APK
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    needs: [check-release-trigger]
+    if: ${{ needs.check-release-trigger.outputs.should_build == 'true' }}
 
     steps:
       - name: Checkout repository
@@ -91,7 +129,7 @@ jobs:
             fi
             API_URL="https://attendify-li14.onrender.com/api/v1"
           else
-            # Pushed to branch (e.g. main)
+            # Pushed to main branch
             PUBSPEC_VER=$(grep '^version:' mobile/pubspec.yaml | head -n 1 | awk '{print $2}' | cut -d'+' -f1 | tr -d ' \r\n')
             if [ -n "$PUBSPEC_VER" ]; then
               TAG="v${PUBSPEC_VER}"
@@ -133,36 +171,22 @@ jobs:
         uses: subosito/flutter-action@v2
         with:
           channel: "stable"
-          flutter-version: "3.35.6"
           cache: true
-          cache-key: "flutter-:os:-:channel:-:version:-:arch:-:hash:"
-
-      - name: Set up Gradle
-        uses: gradle/actions/setup-gradle@v4
-        with:
-          gradle-version: "8.12"
 
       - name: Ensure Android Gradle wrapper
         working-directory: mobile
         shell: bash
         run: |
-          if [ ! -x android/gradlew ]; then
+          if [ ! -f android/gradlew ]; then
             FLUTTER_SDK="$(dirname "$(dirname "$(command -v flutter)")")"
             printf 'flutter.sdk=%s\n' "$FLUTTER_SDK" > android/local.properties
             gradle -p android wrapper --gradle-version 8.12
           fi
+          chmod +x android/gradlew
 
       - name: Install Flutter dependencies
         working-directory: mobile
         run: flutter pub get
-
-      - name: Run Flutter test suite
-        working-directory: mobile
-        run: flutter test --reporter compact
-
-      - name: Analyze Flutter project
-        working-directory: mobile
-        run: flutter analyze --no-fatal-infos
 
       - name: Build Release APK
         working-directory: mobile

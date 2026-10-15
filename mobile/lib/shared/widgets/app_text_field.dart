@@ -19,6 +19,7 @@ class AppTextField extends StatelessWidget {
   final void Function(PointerDownEvent)? onTapOutside;
   final FocusNode? focusNode;
   final int maxLines;
+  final EdgeInsetsGeometry? contentPadding;
 
   const AppTextField({
     super.key,
@@ -37,6 +38,7 @@ class AppTextField extends StatelessWidget {
     this.onTapOutside,
     this.focusNode,
     this.maxLines = 1,
+    this.contentPadding,
   });
 
   @override
@@ -46,10 +48,13 @@ class AppTextField extends StatelessWidget {
       children: [
         Text(
           label,
-          style:
-              AppTypography.labelMedium.copyWith(color: AppColors.inkSecondary),
+          style: AppTypography.labelMedium.copyWith(
+            color: AppColors.inkSecondary,
+            fontSize: 13,
+            fontWeight: FontWeight.w600,
+          ),
         ),
-        const SizedBox(height: 6),
+        const SizedBox(height: 7),
         TextFormField(
           controller: controller,
           focusNode: focusNode,
@@ -62,17 +67,22 @@ class AppTextField extends StatelessWidget {
           onChanged: onChanged,
           onEditingComplete: onEditingComplete,
           onTapOutside: onTapOutside,
-          style: AppTypography.bodyLarge.copyWith(color: AppColors.ink),
+          style: AppTypography.bodyLarge.copyWith(
+            color: AppColors.ink,
+            fontSize: 14.5,
+          ),
           decoration: InputDecoration(
             hintText: hint,
-            hintStyle:
-                AppTypography.bodyMedium.copyWith(color: AppColors.inkLight),
+            hintStyle: AppTypography.bodyMedium.copyWith(
+              color: AppColors.inkLight,
+              fontSize: 14,
+            ),
             prefixIcon: prefixIcon,
             suffixIcon: suffixIcon,
             filled: true,
             fillColor: Colors.white,
-            contentPadding:
-                const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+            contentPadding: contentPadding ??
+                const EdgeInsets.symmetric(horizontal: 16, vertical: 15),
             enabledBorder: const OutlineInputBorder(
               borderRadius: AppRadii.radiusMd,
               borderSide: BorderSide(color: AppColors.divider, width: 1.2),

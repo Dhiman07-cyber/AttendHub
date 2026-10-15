@@ -7,6 +7,9 @@ import 'package:attendhub/features/auth/providers/auth_provider.dart';
 import 'package:attendhub/features/subjects/subjects_screen.dart';
 import 'package:attendhub/features/subjects/providers/subjects_provider.dart';
 import 'package:attendhub/features/holidays/holidays_screen.dart';
+import 'package:attendhub/features/holidays/providers/holidays_provider.dart';
+import 'package:attendhub/shared/models/subject_model.dart';
+import 'package:attendhub/shared/models/holiday_model.dart';
 import 'package:attendhub/core/theme/app_theme.dart';
 
 class FakeAuthNotifier extends AuthNotifier {
@@ -17,7 +20,38 @@ class FakeAuthNotifier extends AuthNotifier {
 
 class FakeSubjectsNotifier extends SubjectsNotifier {
   FakeSubjectsNotifier() {
-    state = SubjectsState(isLoading: false, subjects: []);
+    state = SubjectsState(
+      isLoading: false,
+      subjects: [
+        SubjectModel.fromJson({
+          'id': 'sub-1',
+          'semester_id': 'sem-1',
+          'name': 'Mathematics',
+          'code': 'MATH101',
+          'color': '#C96E5B',
+          'icon': 'book',
+          'is_active': true,
+        }),
+      ],
+    );
+  }
+}
+
+class FakeHolidaysNotifier extends HolidaysNotifier {
+  FakeHolidaysNotifier() {
+    state = HolidaysState(
+      isLoading: false,
+      holidays: [
+        HolidayModel.fromJson({
+          'id': 'h-1',
+          'user_id': 'user-1',
+          'title': 'Diwali',
+          'start_date': '2026-11-01',
+          'end_date': '2026-11-02',
+          'category': 'Festival',
+        }),
+      ],
+    );
   }
 }
 
@@ -194,6 +228,9 @@ void main() {
 
       await tester.pumpWidget(
         ProviderScope(
+          overrides: [
+            holidaysProvider.overrideWith((ref) => FakeHolidaysNotifier()),
+          ],
           child: MaterialApp(
             theme: AppTheme.lightTheme,
             home: HolidaysScreen(
@@ -205,15 +242,15 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      // Find and tap Upload Holiday List
-      final uploadHolidayFinder = find.text('Upload Holiday List');
+      // Find and tap Upload Holidays
+      final uploadHolidayFinder = find.text('Upload Holidays');
       expect(uploadHolidayFinder, findsOneWidget);
       await tester.tap(uploadHolidayFinder);
       await tester.pump();
 
       // Verify Coming Soon toast appears
       expect(find.byType(SnackBar), findsOneWidget);
-      expect(find.text('Upload Holiday List is coming soon!'), findsOneWidget);
+      expect(find.text('Upload Holidays is coming soon!'), findsOneWidget);
       expect(find.byIcon(Icons.hourglass_top_rounded), findsOneWidget);
     });
   });

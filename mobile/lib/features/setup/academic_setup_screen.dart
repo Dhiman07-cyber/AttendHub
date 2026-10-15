@@ -10,6 +10,7 @@ import '../../shared/widgets/app_button.dart';
 import '../../shared/widgets/app_text_field.dart';
 import '../../shared/widgets/liquid_glass_card.dart';
 import '../../shared/widgets/app_toast.dart';
+import '../../shared/widgets/shimmer_skeleton.dart';
 import '../auth/providers/auth_provider.dart';
 import '../dashboard/providers/dashboard_provider.dart';
 import '../today/providers/today_provider.dart';
@@ -66,7 +67,6 @@ class _AcademicSetupScreenState extends ConsumerState<AcademicSetupScreen> with 
   DateTime _endDate = DateTime.now().add(const Duration(days: 180));
   double _minAttendance = 75.0;
   double _personalTarget = 75.0;
-  Set<int> _workingDays = {0, 1, 2, 3, 4, 5}; // Mon-Sat default
   Set<int> _availableSemesterNumbers = {};
   final Map<int, Map<String, dynamic>> _semesterCache = {};
   bool _isLoadingSemesterData = false;
@@ -2631,7 +2631,32 @@ class _AcademicSetupScreenState extends ConsumerState<AcademicSetupScreen> with 
           const SizedBox(height: 22),
 
           // Enrolled Subjects Section Header
-          if (_subjects.isNotEmpty)
+          if (_isLoadingSemesterData && _subjects.isEmpty)
+            const Padding(
+              padding: EdgeInsets.only(bottom: 12, top: 4),
+              child: Row(
+                children: [
+                  SizedBox(
+                    width: 14,
+                    height: 14,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: AppColors.terracotta,
+                    ),
+                  ),
+                  SizedBox(width: 8),
+                  Text(
+                    'Loading Enrolled Subjects...',
+                    style: TextStyle(
+                      fontWeight: FontWeight.w700,
+                      fontSize: 14.5,
+                      color: AppColors.inkSecondary,
+                    ),
+                  ),
+                ],
+              ),
+            )
+          else if (_subjects.isNotEmpty)
             Padding(
               padding: const EdgeInsets.only(bottom: 12, top: 4),
               child: Row(
@@ -2664,8 +2689,50 @@ class _AcademicSetupScreenState extends ConsumerState<AcademicSetupScreen> with 
               ),
             ),
 
-          // List of added subjects
-          if (_subjects.isEmpty)
+          // List of added subjects / Loading Skeleton / Empty State
+          if (_isLoadingSemesterData && _subjects.isEmpty)
+            ShimmerLoading(
+              child: Column(
+                children: List.generate(
+                  3,
+                  (index) => Container(
+                    margin: const EdgeInsets.only(bottom: 12),
+                    padding: const EdgeInsets.all(14),
+                    decoration: BoxDecoration(
+                      color: AppColors.surface,
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(color: AppColors.divider),
+                    ),
+                    child: const Row(
+                      children: [
+                        SkeletonBox(
+                          width: 36,
+                          height: 36,
+                          borderRadius: BorderRadius.all(Radius.circular(10)),
+                        ),
+                        SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              SkeletonBox.text(width: 140, height: 13),
+                              SizedBox(height: 6),
+                              SkeletonBox.text(width: 80, height: 10),
+                            ],
+                          ),
+                        ),
+                        SkeletonBox(
+                          width: 30,
+                          height: 30,
+                          borderRadius: BorderRadius.all(Radius.circular(8)),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            )
+          else if (_subjects.isEmpty)
             Center(
               child: Padding(
                 padding: const EdgeInsets.all(24),
@@ -3195,8 +3262,47 @@ class _AcademicSetupScreenState extends ConsumerState<AcademicSetupScreen> with 
           ),
 
           // Timetable Grid with Fixed Leftmost Day Column and Horizontally Scrollable Hour Slots
-          Container(
-            decoration: BoxDecoration(
+          if (_isLoadingSemesterData && _timetableEntries.isEmpty)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 14),
+              child: ShimmerLoading(
+                child: Container(
+                  height: 240,
+                  decoration: BoxDecoration(
+                    color: AppColors.surface,
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(color: AppColors.divider),
+                  ),
+                  padding: const EdgeInsets.all(16),
+                  child: const Column(
+                    children: [
+                      SkeletonBox(width: double.infinity, height: 32, borderRadius: BorderRadius.all(Radius.circular(8))),
+                      SizedBox(height: 12),
+                      Expanded(
+                        child: Row(
+                          children: [
+                            SkeletonBox(width: 50, height: double.infinity, borderRadius: BorderRadius.all(Radius.circular(8))),
+                            SizedBox(width: 10),
+                            Expanded(
+                              child: Column(
+                                children: [
+                                  Expanded(child: SkeletonBox(width: double.infinity, height: double.infinity, borderRadius: BorderRadius.all(Radius.circular(8)))),
+                                  SizedBox(height: 8),
+                                  Expanded(child: SkeletonBox(width: double.infinity, height: double.infinity, borderRadius: BorderRadius.all(Radius.circular(8)))),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            )
+          else
+            Container(
+              decoration: BoxDecoration(
               color: AppColors.surface,
               borderRadius: BorderRadius.circular(16),
               border: Border.all(color: AppColors.divider),

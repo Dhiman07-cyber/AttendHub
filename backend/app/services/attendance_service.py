@@ -169,7 +169,8 @@ async def get_today_sessions(
                 is_extra=cs.is_extra,
                 time_status=time_st,
                 attendance_status=att_status,
-                attendance_id=att_id
+                attendance_id=att_id,
+                class_type=cs.class_type or (tt.class_type if tt else None) or "UNSPECIFIED"
             ))
         else:
             # Virtual session slot (Pure Read - NO DB writes)

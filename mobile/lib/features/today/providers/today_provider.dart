@@ -1,3 +1,4 @@
+import 'dart:math';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import '../../../core/network/api_client.dart';
@@ -8,6 +9,7 @@ import '../../../core/storage/local_storage.dart';
 class TodayState {
   final bool isLoading;
   final bool isLoadingWeek;
+  final bool hasLoaded;
   final bool isSaving;
   final String dateStr;
   final String semesterLabel;
@@ -34,6 +36,7 @@ class TodayState {
   TodayState({
     this.isLoading = false,
     this.isLoadingWeek = false,
+    this.hasLoaded = true,
     this.isSaving = false,
     required this.dateStr,
     required this.semesterLabel,
@@ -65,6 +68,7 @@ class TodayState {
   TodayState copyWith({
     bool? isLoading,
     bool? isLoadingWeek,
+    bool? hasLoaded,
     bool? isSaving,
     String? dateStr,
     String? semesterLabel,
@@ -89,6 +93,7 @@ class TodayState {
     return TodayState(
       isLoading: isLoading ?? this.isLoading,
       isLoadingWeek: isLoadingWeek ?? this.isLoadingWeek,
+      hasLoaded: hasLoaded ?? this.hasLoaded,
       isSaving: isSaving ?? this.isSaving,
       dateStr: dateStr ?? this.dateStr,
       semesterLabel: semesterLabel ?? this.semesterLabel,
@@ -119,6 +124,8 @@ class TodayNotifier extends StateNotifier<TodayState> {
 
   TodayNotifier()
       : super(TodayState(
+          isLoading: true,
+          hasLoaded: false,
           dateStr: 'Today',
           semesterLabel: 'Active Semester',
           sessions: [],
@@ -262,20 +269,31 @@ class TodayNotifier extends StateNotifier<TodayState> {
     }
 
     int minHour = 9;
-    int maxHour = 17;
+    int maxHour = 16;
     if (ttEntries.isNotEmpty) {
+      int? foundMin;
+      int? foundMax;
       for (final e in ttEntries) {
         final st = e['start_time'] as String?;
         final et = e['end_time'] as String?;
         if (st != null && st.contains(':')) {
           final h = int.tryParse(st.split(':')[0]);
-          if (h != null && h < minHour) minHour = h;
+          if (h != null) {
+            foundMin = foundMin == null ? h : min(foundMin, h);
+          }
         }
         if (et != null && et.contains(':')) {
-          final h = int.tryParse(et.split(':')[0]);
-          if (h != null && h > maxHour) maxHour = h;
+          final parts = et.split(':');
+          final h = int.tryParse(parts[0]);
+          final m = parts.length > 1 ? (int.tryParse(parts[1]) ?? 0) : 0;
+          if (h != null) {
+            final effectiveEnd = m > 0 ? h + 1 : h;
+            foundMax = foundMax == null ? effectiveEnd : max(foundMax, effectiveEnd);
+          }
         }
       }
+      if (foundMin != null) minHour = foundMin;
+      if (foundMax != null) maxHour = foundMax;
     }
 
     final finalWeekLabel = weekLabelFromApi ?? formatRelativeWeekLabel(currentOffset);
@@ -284,6 +302,7 @@ class TodayNotifier extends StateNotifier<TodayState> {
     state = state.copyWith(
       isLoading: isLoading,
       isLoadingWeek: isLoadingWeek,
+      hasLoaded: true,
       weekOffset: currentOffset,
       weekLabel: finalWeekLabel,
       dateRangeDisplay: finalRangeDisplay,
@@ -403,20 +422,31 @@ class TodayNotifier extends StateNotifier<TodayState> {
       }
 
       int minHour = 9;
-      int maxHour = 17;
+      int maxHour = 16;
       if (ttEntries.isNotEmpty) {
+        int? foundMin;
+        int? foundMax;
         for (final e in ttEntries) {
           final st = e['start_time'] as String?;
           final et = e['end_time'] as String?;
           if (st != null && st.contains(':')) {
             final h = int.tryParse(st.split(':')[0]);
-            if (h != null && h < minHour) minHour = h;
+            if (h != null) {
+              foundMin = foundMin == null ? h : min(foundMin, h);
+            }
           }
           if (et != null && et.contains(':')) {
-            final h = int.tryParse(et.split(':')[0]);
-            if (h != null && h > maxHour) maxHour = h;
+            final parts = et.split(':');
+            final h = int.tryParse(parts[0]);
+            final m = parts.length > 1 ? (int.tryParse(parts[1]) ?? 0) : 0;
+            if (h != null) {
+              final effectiveEnd = m > 0 ? h + 1 : h;
+              foundMax = foundMax == null ? effectiveEnd : max(foundMax, effectiveEnd);
+            }
           }
         }
+        if (foundMin != null) minHour = foundMin;
+        if (foundMax != null) maxHour = foundMax;
       }
 
       if (!mounted || seq != _currentRequestSeq) return;
@@ -424,6 +454,7 @@ class TodayNotifier extends StateNotifier<TodayState> {
       state = state.copyWith(
         isLoading: false,
         isLoadingWeek: false,
+        hasLoaded: true,
         weekOffset: currentOffset,
         weekLabel: formatRelativeWeekLabel(currentOffset),
         dateRangeDisplay: fallbackRange.$3,
@@ -438,6 +469,7 @@ class TodayNotifier extends StateNotifier<TodayState> {
       state = state.copyWith(
         isLoading: false,
         isLoadingWeek: false,
+        hasLoaded: true,
         errorMessage: state.timetableEntries.isEmpty ? 'Unable to load schedule from server.' : null,
       );
     }

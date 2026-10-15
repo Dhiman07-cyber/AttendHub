@@ -48,33 +48,31 @@ class LandscapeHeaderWidget extends StatelessWidget {
             left: 0,
             right: 0,
             height: topPadding + 220 + (topOffset ?? 76.0),
-            child: RepaintBoundary(
-              child: Stack(
-                fit: StackFit.expand,
-                children: [
-                  // Panoramic mountain sunrise with crisp clarity so the artwork is vividly visible
-                  Image.asset(
-                    'assets/images/dashboard_hero.png',
-                    fit: BoxFit.cover,
-                    alignment: const Alignment(0.12, -0.30),
-                    cacheWidth: 800,
-                    errorBuilder: (context, error, stackTrace) {
-                      return Container(
-                        decoration: const BoxDecoration(
-                          gradient: LinearGradient(
-                            begin: Alignment.topCenter,
-                            end: Alignment.bottomCenter,
-                            colors: [
-                              Color(0xFFFBECE2),
-                              Color(0xFFF5E3D8),
-                              AppColors.background,
-                            ],
-                          ),
+            child: Stack(
+              fit: StackFit.expand,
+              children: [
+                // Panoramic mountain sunrise with crisp clarity so the artwork is vividly visible
+                Image.asset(
+                  'assets/images/dashboard_hero.png',
+                  fit: BoxFit.cover,
+                  alignment: const Alignment(0.12, -0.30),
+                  cacheWidth: 800,
+                  errorBuilder: (context, error, stackTrace) {
+                    return Container(
+                      decoration: const BoxDecoration(
+                        gradient: LinearGradient(
+                          begin: Alignment.topCenter,
+                          end: Alignment.bottomCenter,
+                          colors: [
+                            Color(0xFFFBECE2),
+                            Color(0xFFF5E3D8),
+                            AppColors.background,
+                          ],
                         ),
-                      );
-                    },
-                  ),
-
+                      ),
+                    );
+                  },
+                ),
 
                 // Smooth gradient fade into AppColors.background only towards the bottom edge
                 Container(
@@ -95,7 +93,6 @@ class LandscapeHeaderWidget extends StatelessWidget {
               ],
             ),
           ),
-        ),
 
         // Header content
         Padding(

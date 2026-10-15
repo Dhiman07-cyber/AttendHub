@@ -9,6 +9,7 @@ import '../../core/theme/app_typography.dart';
 import '../../shared/models/semester_model.dart';
 import '../../shared/models/user_model.dart';
 import '../../shared/providers/semesters_provider.dart';
+import '../../core/theme/time_format_provider.dart';
 import '../auth/providers/auth_provider.dart';
 import '../dashboard/providers/dashboard_provider.dart';
 import 'providers/profile_provider.dart';
@@ -379,6 +380,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     final profileAsync = ref.watch(profileProvider);
     final semestersState = ref.watch(semestersProvider);
     final activeSem = semestersState.activeSemester;
+    final timeFormat = ref.watch(timeFormatProvider);
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -689,9 +691,9 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
 
               const SizedBox(height: 20),
 
-              // 4. Attendance Settings Section (Inline Editable with pencil icons)
+              // 4. System Configurations Section (Inline Editable with pencil icons & timing format)
               _buildSectionHeader(
-                  Icons.track_changes_rounded, 'Attendance Settings'),
+                  Icons.tune_rounded, 'System Configurations'),
               const SizedBox(height: 10),
               Container(
                 decoration: BoxDecoration(
@@ -726,6 +728,58 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                       fieldKey: 'low_attendance_alert',
                       profile: profile,
                       activeSem: activeSem,
+                    ),
+                    const Divider(color: AppColors.divider, height: 1),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          const Row(
+                            children: [
+                              Icon(Icons.schedule_rounded, size: 20, color: AppColors.inkMuted),
+                              SizedBox(width: 12),
+                              Text(
+                                'Timing Format',
+                                style: TextStyle(
+                                  fontWeight: FontWeight.w600,
+                                  fontSize: 14,
+                                  color: AppColors.ink,
+                                ),
+                              ),
+                            ],
+                          ),
+                          Container(
+                            padding: const EdgeInsets.all(3),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFF3EFEA),
+                              borderRadius: BorderRadius.circular(10),
+                              border: Border.all(color: AppColors.divider),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                _buildTimeFormatOption(
+                                  label: '12-hour',
+                                  isSelected: timeFormat == '12h',
+                                  onTap: () {
+                                    HapticFeedback.selectionClick();
+                                    ref.read(timeFormatProvider.notifier).setFormat('12h');
+                                  },
+                                ),
+                                _buildTimeFormatOption(
+                                  label: '24-hour',
+                                  isSelected: timeFormat == '24h',
+                                  onTap: () {
+                                    HapticFeedback.selectionClick();
+                                    ref.read(timeFormatProvider.notifier).setFormat('24h');
+                                  },
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
                   ],
                 ),
@@ -988,6 +1042,41 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                   ),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildTimeFormatOption({
+    required String label,
+    required bool isSelected,
+    required VoidCallback onTap,
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 180),
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+        decoration: BoxDecoration(
+          color: isSelected ? Colors.white : Colors.transparent,
+          borderRadius: BorderRadius.circular(8),
+          boxShadow: isSelected
+              ? const [
+                  BoxShadow(
+                    color: Color(0x14000000),
+                    blurRadius: 4,
+                    offset: Offset(0, 1),
+                  ),
+                ]
+              : null,
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            fontSize: 12,
+            fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
+            color: isSelected ? AppColors.terracotta : AppColors.inkMuted,
+          ),
+        ),
       ),
     );
   }

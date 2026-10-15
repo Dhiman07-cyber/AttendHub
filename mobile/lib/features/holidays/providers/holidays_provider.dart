@@ -6,12 +6,14 @@ import '../../../shared/models/holiday_model.dart';
 
 class HolidaysState {
   final bool isLoading;
+  final bool hasLoaded;
   final List<HolidayModel> holidays;
   final String filterType; // "all", "upcoming", "past"
   final String? errorMessage;
 
   HolidaysState({
     this.isLoading = false,
+    this.hasLoaded = true,
     required this.holidays,
     this.filterType = 'all',
     this.errorMessage,
@@ -25,12 +27,14 @@ class HolidaysState {
 
   HolidaysState copyWith({
     bool? isLoading,
+    bool? hasLoaded,
     List<HolidayModel>? holidays,
     String? filterType,
     String? errorMessage,
   }) {
     return HolidaysState(
       isLoading: isLoading ?? this.isLoading,
+      hasLoaded: hasLoaded ?? this.hasLoaded,
       holidays: holidays ?? this.holidays,
       filterType: filterType ?? this.filterType,
       errorMessage: errorMessage,
@@ -44,6 +48,8 @@ class HolidaysNotifier extends StateNotifier<HolidaysState> {
 
   HolidaysNotifier()
       : super(HolidaysState(
+          isLoading: true,
+          hasLoaded: false,
           holidays: [],
         )) {
     loadHolidays();
@@ -51,20 +57,30 @@ class HolidaysNotifier extends StateNotifier<HolidaysState> {
 
   Future<void> loadHolidays() async {
     if (!mounted) return;
+    final token = await _storage.getAccessToken();
+    if (!mounted) return;
+    if (token == null || token.isEmpty || token == 'demo_token') {
+      state = state.copyWith(isLoading: false, hasLoaded: true);
+      return;
+    }
     if (state.holidays.isEmpty) {
       final cached = await _storage.getCachedHolidays();
       if (!mounted) return;
       if (cached != null && cached.isNotEmpty) {
         try {
           final cachedList = cached.map((e) => HolidayModel.fromJson(e)).toList();
-          state = state.copyWith(isLoading: false, holidays: cachedList, errorMessage: null);
+          if (!mounted) return;
+          state = state.copyWith(isLoading: false, hasLoaded: true, holidays: cachedList, errorMessage: null);
         } catch (_) {
+          if (!mounted) return;
           state = state.copyWith(isLoading: true, errorMessage: null);
         }
       } else {
+        if (!mounted) return;
         state = state.copyWith(isLoading: true, errorMessage: null);
       }
     } else {
+      if (!mounted) return;
       state = state.copyWith(errorMessage: null);
     }
 
@@ -78,12 +94,13 @@ class HolidaysNotifier extends StateNotifier<HolidaysState> {
         final list = rawList
             .map((e) => HolidayModel.fromJson(Map<String, dynamic>.from(e as Map)))
             .toList();
-        state = state.copyWith(isLoading: false, holidays: list, errorMessage: null);
+        state = state.copyWith(isLoading: false, hasLoaded: true, holidays: list, errorMessage: null);
       }
     } catch (e) {
       if (!mounted) return;
       state = state.copyWith(
         isLoading: false,
+        hasLoaded: true,
         errorMessage: state.holidays.isEmpty ? 'Unable to load holidays from server.' : null,
       );
     }

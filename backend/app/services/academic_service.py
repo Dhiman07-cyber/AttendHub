@@ -123,7 +123,28 @@ async def get_active_semester(db: AsyncSession, user_id: str) -> Semester:
         res2 = await db.execute(stmt2)
         semester = res2.scalar_one_or_none()
     if not semester:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No active semester configured.")
+        # Self-heal default active semester so fresh / imported users never crash with 404/500
+        sem_start = date(2026, 8, 1)
+        sem_end = date(2026, 12, 20)
+        semester = Semester(
+            user_id=user_id,
+            semester_number=1,
+            label="1st Semester",
+            start_date=sem_start,
+            end_date=sem_end,
+            status="ACTIVE",
+            is_active=True,
+            total_weeks=16
+        )
+        db.add(semester)
+        await db.flush()
+        prof_stmt = select(AcademicProfile).where(AcademicProfile.user_id == user_id)
+        prof_res = await db.execute(prof_stmt)
+        prof = prof_res.scalar_one_or_none()
+        if prof and not prof.current_semester_id:
+            prof.current_semester_id = semester.id
+        await db.commit()
+        await db.refresh(semester)
     return semester
 
 async def switch_semester(db: AsyncSession, user_id: str, target_semester_id: str) -> SemesterOut:

@@ -20,26 +20,40 @@ import '../../../shared/providers/semesters_provider.dart';
 
 class AuthState {
   final bool isAuthenticated;
-  final bool isLoading;
+  final bool isInitialChecking;
+  final bool isSubmitting;
+  final bool isGoogleLoading;
   final String? errorMessage;
   final UserModel? user;
 
   AuthState({
     required this.isAuthenticated,
-    this.isLoading = false,
+    bool? isLoading,
+    this.isInitialChecking = false,
+    bool isSubmitting = false,
+    this.isGoogleLoading = false,
     this.errorMessage,
     this.user,
-  });
+  }) : isSubmitting = isSubmitting || (isLoading ?? false);
+
+  /// Convenience getter for backward compatibility
+  bool get isLoading => isInitialChecking || isSubmitting || isGoogleLoading;
 
   AuthState copyWith({
     bool? isAuthenticated,
     bool? isLoading,
+    bool? isInitialChecking,
+    bool? isSubmitting,
+    bool? isGoogleLoading,
     String? errorMessage,
     UserModel? user,
   }) {
+    final effectiveSubmitting = isSubmitting ?? (isLoading ?? this.isSubmitting);
     return AuthState(
       isAuthenticated: isAuthenticated ?? this.isAuthenticated,
-      isLoading: isLoading ?? this.isLoading,
+      isInitialChecking: isInitialChecking ?? this.isInitialChecking,
+      isSubmitting: effectiveSubmitting,
+      isGoogleLoading: isGoogleLoading ?? this.isGoogleLoading,
       errorMessage: errorMessage,
       user: user ?? this.user,
     );
@@ -65,7 +79,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
     return _cachedGoogleSignIn!;
   }
 
-  AuthNotifier([this._ref]) : super(AuthState(isAuthenticated: false, isLoading: true)) {
+  AuthNotifier([this._ref]) : super(AuthState(isAuthenticated: false, isInitialChecking: true)) {
     checkInitialAuth();
   }
 
@@ -85,7 +99,12 @@ class AuthNotifier extends StateNotifier<AuthState> {
   }
 
   void setCustomError(String message) {
-    state = state.copyWith(errorMessage: message, isLoading: false);
+    state = state.copyWith(
+      errorMessage: message,
+      isInitialChecking: false,
+      isSubmitting: false,
+      isGoogleLoading: false,
+    );
   }
 
   String _parseErrorDetail(dynamic detail, {String defaultMsg = 'An error occurred.'}) {
@@ -114,7 +133,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
 
     if (token == null || token.isEmpty || token == 'demo_token') {
       await _storage.clearAuth();
-      state = AuthState(isAuthenticated: false, isLoading: false);
+      state = AuthState(isAuthenticated: false, isInitialChecking: false);
       return;
     }
 
@@ -122,11 +141,11 @@ class AuthNotifier extends StateNotifier<AuthState> {
     if (cachedUser != null) {
       state = state.copyWith(
         isAuthenticated: true,
-        isLoading: false,
+        isInitialChecking: false,
         user: cachedUser,
       );
     } else {
-      state = state.copyWith(isLoading: true);
+      state = state.copyWith(isInitialChecking: true);
     }
 
     try {
@@ -137,7 +156,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
         await _storage.setOnboarded(true);
         state = state.copyWith(
           isAuthenticated: true,
-          isLoading: false,
+          isInitialChecking: false,
           user: user,
         );
       }
@@ -145,19 +164,19 @@ class AuthNotifier extends StateNotifier<AuthState> {
       if (dioErr.response?.statusCode == 401) {
         // Access token rejected and refresh interceptor could not refresh
         await _storage.clearAuth();
-        state = AuthState(isAuthenticated: false, isLoading: false);
+        state = AuthState(isAuthenticated: false, isInitialChecking: false);
       } else {
         // Network timeout / connection error / server starting up:
         // Preserve user state if cached user exists
-        state = state.copyWith(isLoading: false);
+        state = state.copyWith(isInitialChecking: false);
       }
     } catch (_) {
-      state = state.copyWith(isLoading: false);
+      state = state.copyWith(isInitialChecking: false);
     }
   }
 
   Future<bool> login(String email, String password) async {
-    state = state.copyWith(isLoading: true, errorMessage: null);
+    state = state.copyWith(isSubmitting: true, errorMessage: null);
     try {
       final resp = await _client.dio.post(
         ApiEndpoints.login,
@@ -180,7 +199,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
       invalidateUserData();
       state = state.copyWith(
         isAuthenticated: true,
-        isLoading: false,
+        isSubmitting: false,
         user: user,
       );
       return true;
@@ -195,7 +214,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
       }
       state = state.copyWith(
         isAuthenticated: false,
-        isLoading: false,
+        isSubmitting: false,
         errorMessage: msg,
       );
       return false;
@@ -211,7 +230,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
     int? semesterNumber,
     bool seedDemoData = false,
   }) async {
-    state = state.copyWith(isLoading: true, errorMessage: null);
+    state = state.copyWith(isSubmitting: true, errorMessage: null);
     try {
       final resp = await _client.dio.post(
         ApiEndpoints.register,
@@ -242,7 +261,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
       invalidateUserData();
       state = state.copyWith(
         isAuthenticated: true,
-        isLoading: false,
+        isSubmitting: false,
         user: user,
       );
       return true;
@@ -257,7 +276,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
       }
       state = state.copyWith(
         isAuthenticated: false,
-        isLoading: false,
+        isSubmitting: false,
         errorMessage: msg,
       );
       return false;
@@ -270,7 +289,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
     String? mockEmail,
     String? mockName,
   }) async {
-    state = state.copyWith(isLoading: true, errorMessage: null);
+    state = state.copyWith(isGoogleLoading: true, errorMessage: null);
     try {
       String? idToken = mockIdToken;
       String? accessToken = mockAccessToken;
@@ -279,15 +298,11 @@ class AuthNotifier extends StateNotifier<AuthState> {
 
       if (idToken == null && accessToken == null) {
         final GoogleSignIn googleSignIn = _getGoogleSignIn();
-        GoogleSignInAccount? account;
-        if (kIsWeb) {
-          try {
-            account = await googleSignIn.signInSilently();
-          } catch (_) {}
-        }
-        account ??= await googleSignIn.signIn();
+        // Trigger explicit Google account selection directly.
+        // Bypasses passive FedCM signInSilently() which hangs indefinitely in desktop browsers.
+        final GoogleSignInAccount? account = await googleSignIn.signIn();
         if (account == null) {
-          state = state.copyWith(isLoading: false);
+          state = state.copyWith(isGoogleLoading: false);
           return false;
         }
         final GoogleSignInAuthentication auth = await account.authentication;
@@ -307,7 +322,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
       if (!payload.containsKey('id_token') && !payload.containsKey('access_token')) {
         state = state.copyWith(
           isAuthenticated: false,
-          isLoading: false,
+          isGoogleLoading: false,
           errorMessage: 'Google authentication did not return credentials. Check your Google Cloud origins.',
         );
         return false;
@@ -335,16 +350,21 @@ class AuthNotifier extends StateNotifier<AuthState> {
       invalidateUserData();
       state = state.copyWith(
         isAuthenticated: true,
-        isLoading: false,
+        isGoogleLoading: false,
         user: user,
       );
       return true;
     } on PlatformException catch (pEx, st) {
       debugPrint('[Google Auth PlatformException] ${pEx.code}: ${pEx.message}\n$st');
-      final msg = pEx.message ?? 'Google Sign-In is unavailable on this device platform (${pEx.code}).';
+      String msg = pEx.message ?? 'Google Sign-In is unavailable on this device platform (${pEx.code}).';
+      if (pEx.code == 'popup_closed_by_user') {
+        msg = 'Google Sign-In was cancelled.';
+      } else if (pEx.code.contains('unregistered_origin') || (pEx.message ?? '').contains('unregistered_origin')) {
+        msg = 'Google Sign-In: Current origin/port is not authorized in Google Cloud Console. Add this localhost port to Authorized JavaScript Origins.';
+      }
       state = state.copyWith(
         isAuthenticated: false,
-        isLoading: false,
+        isGoogleLoading: false,
         errorMessage: msg,
       );
       return false;
@@ -363,11 +383,17 @@ class AuthNotifier extends StateNotifier<AuthState> {
         }
       } else {
         final errStr = e.toString().replaceAll('Exception:', '').trim();
-        msg = errStr.isNotEmpty ? 'Google Sign-In: $errStr' : 'Google authentication failed.';
+        if (errStr.contains('unregistered_origin')) {
+          msg = 'Google Sign-In: Current origin/port is not authorized in Google Cloud Console. Add this localhost port to Authorized JavaScript Origins.';
+        } else if (errStr.contains('popup_closed') || errStr.contains('user cancelled')) {
+          msg = 'Google Sign-In was cancelled.';
+        } else {
+          msg = errStr.isNotEmpty ? 'Google Sign-In: $errStr' : 'Google authentication failed.';
+        }
       }
       state = state.copyWith(
         isAuthenticated: false,
-        isLoading: false,
+        isGoogleLoading: false,
         errorMessage: msg,
       );
       return false;
@@ -382,8 +408,13 @@ class AuthNotifier extends StateNotifier<AuthState> {
       await _cachedGoogleSignIn?.signOut();
     } catch (_) {}
     await _storage.clearAuth();
+    await _storage.clearSemesterCache();
+    state = AuthState(isAuthenticated: false, isInitialChecking: false);
+    final ref = _ref;
+    if (ref != null) {
+      ref.read(semestersProvider.notifier).clear();
+    }
     invalidateUserData();
-    state = AuthState(isAuthenticated: false, isLoading: false);
   }
 }
 

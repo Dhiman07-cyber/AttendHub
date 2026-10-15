@@ -45,8 +45,9 @@ async def override_get_db():
 @pytest_asyncio.fixture(autouse=True)
 async def setup_test_db():
     fastapi_app.dependency_overrides[get_db] = override_get_db
-    if is_sqlite:
-        async with test_engine.begin() as conn:
-            await conn.run_sync(Base.metadata.create_all)
+    # Always recreate tables for fresh schema (handles migrations/model changes)
+    async with test_engine.begin() as conn:
+        await conn.run_sync(Base.metadata.drop_all)
+        await conn.run_sync(Base.metadata.create_all)
     yield
     fastapi_app.dependency_overrides.clear()

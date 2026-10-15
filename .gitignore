@@ -95,8 +95,6 @@ key.properties
 mobile/android/local.properties
 mobile/android/.gradle/
 mobile/android/captures/
-mobile/android/gradlew
-mobile/android/gradlew.bat
 mobile/android/GeneratedPluginRegistrant.java
 mobile/android/.cxx/
 mobile/android/app/debug/

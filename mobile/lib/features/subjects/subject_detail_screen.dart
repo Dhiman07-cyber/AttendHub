@@ -349,7 +349,7 @@ class SubjectDetailScreen extends ConsumerWidget {
                         Container(
                           padding: const EdgeInsets.all(8),
                           decoration: BoxDecoration(
-                            color: AppColors.terracotta.withOpacity(0.1),
+                            color: AppColors.terracotta.withValues(alpha: 0.1),
                             borderRadius: BorderRadius.circular(10),
                           ),
                           child: const Icon(Icons.calendar_today_outlined,
@@ -394,7 +394,7 @@ class SubjectDetailScreen extends ConsumerWidget {
                           Container(
                             padding: const EdgeInsets.all(8),
                             decoration: BoxDecoration(
-                              color: AppColors.sage.withOpacity(0.1),
+                              color: AppColors.sage.withValues(alpha: 0.1),
                               borderRadius: BorderRadius.circular(10),
                             ),
                             child: const Icon(Icons.trending_up_outlined,
@@ -430,13 +430,13 @@ class SubjectDetailScreen extends ConsumerWidget {
                         padding: const EdgeInsets.all(12),
                         decoration: BoxDecoration(
                           color: currentSubject.maxFutureAbsencesForMin! > 0
-                              ? AppColors.sage.withOpacity(0.05)
-                              : AppColors.coral.withOpacity(0.05),
+                              ? AppColors.sage.withValues(alpha: 0.05)
+                              : AppColors.coral.withValues(alpha: 0.05),
                           borderRadius: BorderRadius.circular(10),
                           border: Border.all(
                             color: currentSubject.maxFutureAbsencesForMin! > 0
-                                ? AppColors.sage.withOpacity(0.2)
-                                : AppColors.coral.withOpacity(0.2),
+                                ? AppColors.sage.withValues(alpha: 0.2)
+                                : AppColors.coral.withValues(alpha: 0.2),
                           ),
                         ),
                         child: Row(
@@ -983,9 +983,9 @@ class SubjectDetailScreen extends ConsumerWidget {
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.05),
+        color: color.withValues(alpha: 0.05),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: color.withOpacity(0.2)),
+        border: Border.all(color: color.withValues(alpha: 0.2)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1021,7 +1021,7 @@ class SubjectDetailScreen extends ConsumerWidget {
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
               decoration: BoxDecoration(
-                color: AppColors.coral.withOpacity(0.1),
+                color: AppColors.coral.withValues(alpha: 0.1),
                 borderRadius: BorderRadius.circular(4),
               ),
               child: Text(
@@ -1038,7 +1038,7 @@ class SubjectDetailScreen extends ConsumerWidget {
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
               decoration: BoxDecoration(
-                color: AppColors.sage.withOpacity(0.1),
+                color: AppColors.sage.withValues(alpha: 0.1),
                 borderRadius: BorderRadius.circular(4),
               ),
               child: Text(

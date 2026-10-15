@@ -52,7 +52,16 @@ class SemestersNotifier extends StateNotifier<SemestersState> {
     _initFromCacheAndServer();
   }
 
+  void clear() {
+    state = SemestersState();
+  }
+
   Future<void> _initFromCacheAndServer() async {
+    final token = await _storage.getAccessToken();
+    if (token == null || token.isEmpty || token == 'demo_token') {
+      return;
+    }
+
     try {
       final cachedStr = await _storage.getCachedSemesters();
       if (cachedStr != null && cachedStr.isNotEmpty && mounted) {
@@ -69,6 +78,14 @@ class SemestersNotifier extends StateNotifier<SemestersState> {
 
   Future<void> loadSemesters() async {
     if (!mounted) return;
+    final token = await _storage.getAccessToken();
+    if (token == null || token.isEmpty || token == 'demo_token') {
+      if (mounted) {
+        state = state.copyWith(isLoading: false, semesters: const []);
+      }
+      return;
+    }
+
     state = state.copyWith(isLoading: state.semesters.isEmpty, errorMessage: null);
     try {
       final resp = await _client.dio.get(ApiEndpoints.semesters);
