@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import '../../core/network/api_client.dart';
@@ -6,13 +7,13 @@ import '../../core/network/api_endpoints.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_typography.dart';
 import '../../shared/models/semester_model.dart';
+import '../../shared/models/user_model.dart';
 import '../../shared/providers/semesters_provider.dart';
-import '../../shared/widgets/app_toast.dart';
 import '../auth/providers/auth_provider.dart';
 import '../dashboard/providers/dashboard_provider.dart';
 import 'providers/profile_provider.dart';
 
-class ProfileScreen extends ConsumerWidget {
+class ProfileScreen extends ConsumerStatefulWidget {
   final VoidCallback onBack;
   final VoidCallback? onOpenSetup;
 
@@ -21,6 +22,30 @@ class ProfileScreen extends ConsumerWidget {
     required this.onBack,
     this.onOpenSetup,
   });
+
+  @override
+  ConsumerState<ProfileScreen> createState() => _ProfileScreenState();
+}
+
+class _ProfileScreenState extends ConsumerState<ProfileScreen> {
+  String? _editingFieldKey;
+  late TextEditingController _editController;
+  late FocusNode _editFocusNode;
+  bool _isSaving = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _editController = TextEditingController();
+    _editFocusNode = FocusNode();
+  }
+
+  @override
+  void dispose() {
+    _editController.dispose();
+    _editFocusNode.dispose();
+    super.dispose();
+  }
 
   String _formatShortDate(String dateStr) {
     try {
@@ -31,331 +56,326 @@ class ProfileScreen extends ConsumerWidget {
     }
   }
 
-  void _showEditSemesterDatesDialog(
-    BuildContext context,
-    WidgetRef ref,
-    SemesterModel sem,
-  ) {
-    DateTime start = DateTime.tryParse(sem.startDate) ?? DateTime(2026, 8, 1);
-    DateTime end = DateTime.tryParse(sem.endDate) ?? DateTime(2026, 12, 20);
+  void _startEditing(String fieldKey, String currentValue) {
+    HapticFeedback.selectionClick();
+    setState(() {
+      _editingFieldKey = fieldKey;
+      _editController.text = currentValue;
+      _editController.selection = TextSelection(
+        baseOffset: 0,
+        extentOffset: currentValue.length,
+      );
+    });
 
-    showModalBottomSheet(
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted && _editFocusNode.canRequestFocus) {
+        _editFocusNode.requestFocus();
+      }
+    });
+  }
+
+  Future<void> _saveCurrentEdit(AcademicProfileModel profile, [SemesterModel? activeSem]) async {
+    if (_editingFieldKey == null || _isSaving) return;
+    final key = _editingFieldKey!;
+    final text = _editController.text.trim();
+
+    setState(() {
+      _editingFieldKey = null;
+      _isSaving = true;
+    });
+
+    try {
+      final client = ApiClient();
+      if (key == 'current_semester_label') {
+        if (activeSem != null && activeSem.id.isNotEmpty) {
+          await client.dio.patch(
+            '${ApiEndpoints.semesters}/${activeSem.id}',
+            data: {'label': text.isEmpty ? activeSem.label : text},
+          );
+          ref.invalidate(semestersProvider);
+        }
+        await client.dio.patch(
+          ApiEndpoints.profile,
+          data: {'current_semester_label': text},
+        );
+        ref.invalidate(profileProvider);
+        ref.invalidate(dashboardProvider);
+      } else {
+        dynamic payloadValue = text;
+        if (key == 'academic_duration_years') {
+          payloadValue = int.tryParse(text) ?? profile.academicDurationYears;
+        } else if (key == 'academic_session_start') {
+          final parts = text.split(RegExp(r'[\s–-]+')).where((p) => p.isNotEmpty).toList();
+          final startYear = int.tryParse(parts.isNotEmpty ? parts[0] : '') ?? profile.academicSessionStart ?? 2024;
+          final endYear = parts.length > 1
+              ? (int.tryParse(parts[1]) ?? (startYear + profile.academicDurationYears))
+              : (startYear + profile.academicDurationYears);
+          await client.dio.patch(
+            ApiEndpoints.profile,
+            data: {
+              'academic_session_start': startYear,
+              'academic_session_end': endYear,
+            },
+          );
+          ref.invalidate(profileProvider);
+          ref.invalidate(dashboardProvider);
+          HapticFeedback.lightImpact();
+          return;
+        } else if (key == 'personal_target') {
+          final clean = text.replaceAll('%', '').trim();
+          payloadValue = double.tryParse(clean) ?? profile.personalTarget;
+        } else if (key == 'low_attendance_alert') {
+          final clean = text.replaceAll('%', '').trim();
+          payloadValue = double.tryParse(clean) ?? profile.lowAttendanceAlert;
+        }
+
+        await client.dio.patch(
+          ApiEndpoints.profile,
+          data: {key: payloadValue},
+        );
+        ref.invalidate(profileProvider);
+        ref.invalidate(dashboardProvider);
+      }
+      HapticFeedback.lightImpact();
+    } catch (e) {
+      debugPrint('Error saving profile field $key: $e');
+    } finally {
+      if (mounted) {
+        setState(() => _isSaving = false);
+      }
+    }
+  }
+
+  Future<void> _pickSemesterTimeline(SemesterModel activeSem) async {
+    DateTime startDt = DateTime.tryParse(activeSem.startDate) ?? DateTime.now();
+    DateTime endDt = DateTime.tryParse(activeSem.endDate) ?? DateTime.now().add(const Duration(days: 120));
+    if (endDt.isBefore(startDt)) {
+      endDt = startDt.add(const Duration(days: 30));
+    }
+
+    final picked = await showDateRangePicker(
       context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setModalState) => Container(
-          padding: EdgeInsets.fromLTRB(20, 20, 20, MediaQuery.of(ctx).viewInsets.bottom + 24),
-          decoration: const BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.only(
-              topLeft: Radius.circular(24),
-              topRight: Radius.circular(24),
+      initialDateRange: DateTimeRange(start: startDt, end: endDt),
+      firstDate: DateTime(2020),
+      lastDate: DateTime(2035),
+      builder: (ctx, child) {
+        return Theme(
+          data: Theme.of(ctx).copyWith(
+            colorScheme: const ColorScheme.light(
+              primary: AppColors.terracotta,
+              onPrimary: Colors.white,
+              surface: AppColors.surface,
+              onSurface: AppColors.ink,
             ),
           ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Center(
-                child: Container(
-                  width: 38,
-                  height: 4,
-                  margin: const EdgeInsets.only(bottom: 16),
-                  decoration: BoxDecoration(
-                    color: AppColors.divider,
-                    borderRadius: BorderRadius.circular(2),
-                  ),
+          child: child!,
+        );
+      },
+    );
+
+    if (picked != null) {
+      final startStr = DateFormat('yyyy-MM-dd').format(picked.start);
+      final endStr = DateFormat('yyyy-MM-dd').format(picked.end);
+      try {
+        final client = ApiClient();
+        await client.dio.patch(
+          '${ApiEndpoints.semesters}/${activeSem.id}',
+          data: {
+            'start_date': startStr,
+            'end_date': endStr,
+          },
+        );
+        ref.invalidate(semestersProvider);
+        ref.invalidate(profileProvider);
+        ref.invalidate(dashboardProvider);
+        HapticFeedback.lightImpact();
+      } catch (e) {
+        debugPrint('Error updating semester timeline: $e');
+      }
+    }
+  }
+
+  void _showHelpSupport(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (ctx) => Container(
+        padding: const EdgeInsets.fromLTRB(20, 20, 20, 32),
+        decoration: const BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.only(
+            topLeft: Radius.circular(24),
+            topRight: Radius.circular(24),
+          ),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Center(
+              child: Container(
+                width: 38,
+                height: 4,
+                margin: const EdgeInsets.only(bottom: 16),
+                decoration: BoxDecoration(
+                  color: AppColors.divider,
+                  borderRadius: BorderRadius.circular(2),
                 ),
               ),
-              Row(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(8),
-                    decoration: BoxDecoration(
-                      color: AppColors.terracottaLight,
-                      borderRadius: BorderRadius.circular(10),
+            ),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                const Row(
+                  children: [
+                    Icon(Icons.help_outline_rounded,
+                        color: AppColors.terracotta, size: 22),
+                    SizedBox(width: 8),
+                    Text(
+                      'Help & Support',
+                      style:
+                          TextStyle(fontWeight: FontWeight.w700, fontSize: 18),
                     ),
-                    child: const Icon(Icons.date_range_rounded, color: AppColors.terracotta, size: 20),
-                  ),
-                  const SizedBox(width: 12),
+                  ],
+                ),
+                IconButton(
+                  icon: const Icon(Icons.close_rounded),
+                  onPressed: () => Navigator.pop(ctx),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            const Text(
+              'Frequently Asked Questions',
+              style: TextStyle(fontWeight: FontWeight.w700, fontSize: 14),
+            ),
+            const SizedBox(height: 8),
+            _buildFaqItem(
+              'How are Safe Absences calculated?',
+              'AttendiFy uses the pure formula: max(0, floor((Attended - 0.75 * Conducted) / 0.75)). If current attendance is below 75%, safe absences are strictly 0.',
+            ),
+            _buildFaqItem(
+              'What if a class is cancelled or not held?',
+              'Sessions marked NOT_HELD, CANCELLED, or scheduled on holidays never count against your attendance total.',
+            ),
+            _buildFaqItem(
+              'How do I update semester, subjects or routine?',
+              'Use Academic Setup located above Attendance Settings to adjust term dates, courses, timetable slots, and target attendance.',
+            ),
+            const SizedBox(height: 16),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: const Color(0xFFFBF6F3),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: AppColors.divider),
+              ),
+              child: const Row(
+                children: [
+                  Icon(Icons.mail_outline_rounded,
+                      color: AppColors.inkMuted, size: 20),
+                  SizedBox(width: 10),
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(
-                          'Edit Semester Dates (${sem.label})',
-                          style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 16, color: AppColors.ink),
-                        ),
-                        const SizedBox(height: 2),
-                        const Text(
-                          'Specify college start and end dates for predictions & milestone tracking.',
-                          style: TextStyle(fontSize: 11.5, color: AppColors.inkMuted),
-                        ),
+                        Text('Need more assistance?',
+                            style: TextStyle(
+                                fontSize: 12, fontWeight: FontWeight.w600)),
+                        Text('Contact us at support@attendify.app',
+                            style: TextStyle(
+                                fontSize: 11, color: AppColors.inkMuted)),
                       ],
                     ),
                   ),
                 ],
               ),
-              const SizedBox(height: 20),
-              Row(
-                children: [
-                  Expanded(
-                    child: InkWell(
-                      onTap: () async {
-                        final picked = await showDatePicker(
-                          context: context,
-                          initialDate: start,
-                          firstDate: DateTime(2020),
-                          lastDate: DateTime(2030),
-                        );
-                        if (picked != null) {
-                          setModalState(() {
-                            start = picked;
-                            if (end.isBefore(start)) {
-                              end = start.add(const Duration(days: 120));
-                            }
-                          });
-                        }
-                      },
-                      borderRadius: BorderRadius.circular(12),
-                      child: Container(
-                        padding: const EdgeInsets.all(12),
-                        decoration: BoxDecoration(
-                          color: AppColors.surfaceAlt,
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: AppColors.divider),
-                        ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            const Text('College Start Date', style: TextStyle(fontSize: 11, color: AppColors.inkMuted)),
-                            const SizedBox(height: 4),
-                            Text(
-                              DateFormat('dd MMM yyyy').format(start),
-                              style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13, color: AppColors.ink),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: InkWell(
-                      onTap: () async {
-                        final picked = await showDatePicker(
-                          context: context,
-                          initialDate: end,
-                          firstDate: start,
-                          lastDate: DateTime(2030),
-                        );
-                        if (picked != null) {
-                          setModalState(() => end = picked);
-                        }
-                      },
-                      borderRadius: BorderRadius.circular(12),
-                      child: Container(
-                        padding: const EdgeInsets.all(12),
-                        decoration: BoxDecoration(
-                          color: AppColors.surfaceAlt,
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: AppColors.divider),
-                        ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            const Text('College End Date', style: TextStyle(fontSize: 11, color: AppColors.inkMuted)),
-                            const SizedBox(height: 4),
-                            Text(
-                              DateFormat('dd MMM yyyy').format(end),
-                              style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13, color: AppColors.ink),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 24),
-              SizedBox(
-                width: double.infinity,
-                height: 46,
-                child: ElevatedButton(
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AppColors.terracotta,
-                    foregroundColor: Colors.white,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                  ),
-                  onPressed: () async {
-                    Navigator.pop(ctx);
-                    try {
-                      final client = ApiClient();
-                      await client.dio.patch(
-                        '${ApiEndpoints.semesters}/${sem.id}',
-                        data: {
-                          'start_date': DateFormat('yyyy-MM-dd').format(start),
-                          'end_date': DateFormat('yyyy-MM-dd').format(end),
-                        },
-                      );
-                      await ref.read(semestersProvider.notifier).loadSemesters();
-                      ref.invalidate(profileProvider);
-                      ref.invalidate(dashboardProvider);
-                      if (context.mounted) {
-                        AppToast.success(context, 'Semester dates updated successfully');
-                      }
-                    } catch (e) {
-                      if (context.mounted) {
-                        AppToast.error(context, 'Failed to update semester dates');
-                      }
-                    }
-                  },
-                  child: const Text('Save Dates', style: TextStyle(fontWeight: FontWeight.w700)),
-                ),
-              ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );
   }
 
-  void _showEditFieldSheet({
-    required BuildContext context,
-    required WidgetRef ref,
-    required String title,
-    required String initialValue,
-    required String fieldKey,
-    String? hintText,
-  }) {
-    final ctrl = TextEditingController(text: initialValue);
-    showModalBottomSheet(
+  Widget _buildFaqItem(String question, String answer) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 6),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            question,
+            style: const TextStyle(
+                fontWeight: FontWeight.w600,
+                fontSize: 12,
+                color: AppColors.ink),
+          ),
+          const SizedBox(height: 2),
+          Text(
+            answer,
+            style: const TextStyle(
+                fontSize: 11, color: AppColors.inkMuted, height: 1.3),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showAboutDialog(BuildContext context) {
+    showDialog(
       context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (ctx) => Padding(
-        padding: EdgeInsets.only(
-          bottom: MediaQuery.of(ctx).viewInsets.bottom,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: Row(
+          children: [
+            Container(
+              width: 36,
+              height: 36,
+              decoration: BoxDecoration(
+                color: AppColors.terracottaLight,
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: const Icon(Icons.school_rounded,
+                  color: AppColors.terracotta, size: 20),
+            ),
+            const SizedBox(width: 10),
+            const Text('About AttendiFy',
+                style: TextStyle(fontWeight: FontWeight.w700, fontSize: 18)),
+          ],
         ),
-        child: Container(
-          padding: const EdgeInsets.all(20),
-          decoration: const BoxDecoration(
-            color: AppColors.surface,
-            borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text(
-                    title,
-                    style: const TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w700,
-                      color: AppColors.ink,
-                    ),
-                  ),
-                  IconButton(
-                    icon: const Icon(Icons.close_rounded, size: 20, color: AppColors.inkMuted),
-                    onPressed: () => Navigator.pop(ctx),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 10),
-              TextField(
-                controller: ctrl,
-                autofocus: true,
-                style: const TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w600,
-                  color: AppColors.ink,
-                ),
-                decoration: InputDecoration(
-                  hintText: hintText,
-                  filled: true,
-                  fillColor: AppColors.surfaceAlt,
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    borderSide: const BorderSide(color: AppColors.divider),
-                  ),
-                  enabledBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    borderSide: const BorderSide(color: AppColors.divider),
-                  ),
-                  focusedBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    borderSide: const BorderSide(color: AppColors.terracotta, width: 1.5),
-                  ),
-                  contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                ),
-              ),
-              const SizedBox(height: 18),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.end,
-                children: [
-                  TextButton(
-                    onPressed: () => Navigator.pop(ctx),
-                    child: const Text('Cancel', style: TextStyle(color: AppColors.inkMuted, fontWeight: FontWeight.w600)),
-                  ),
-                  const SizedBox(width: 8),
-                  ElevatedButton(
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: AppColors.terracotta,
-                      foregroundColor: Colors.white,
-                      elevation: 0,
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-                    ),
-                    onPressed: () async {
-                      final newVal = ctrl.text.trim();
-                      if (newVal.isNotEmpty) {
-                        Navigator.pop(ctx);
-                        try {
-                          final client = ApiClient();
-                          await client.dio.patch(
-                            ApiEndpoints.profile,
-                            data: {fieldKey: newVal},
-                          );
-                          ref.invalidate(profileProvider);
-                          ref.invalidate(dashboardProvider);
-                          if (context.mounted) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(
-                                content: Text('$title updated successfully'),
-                                duration: const Duration(seconds: 2),
-                                behavior: SnackBarBehavior.floating,
-                              ),
-                            );
-                          }
-                        } catch (e) {
-                          if (context.mounted) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(
-                                content: Text('Failed to update field. Please retry.'),
-                                backgroundColor: AppColors.coral,
-                              ),
-                            );
-                          }
-                        }
-                      }
-                    },
-                    child: const Text('Save', style: TextStyle(fontWeight: FontWeight.w700)),
-                  ),
-                ],
-              ),
-            ],
-          ),
+        content: const Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('AttendiFy v1.0.1',
+                style: TextStyle(fontWeight: FontWeight.w700, fontSize: 14)),
+            SizedBox(height: 4),
+            Text(
+              'Student-first attendance tracking and forecasting utility.',
+              style: TextStyle(fontSize: 12, color: AppColors.inkMuted),
+            ),
+            SizedBox(height: 12),
+            Text(
+              '• 75.0% Attendance Threshold Default\n• Independent Student Record\n• Semester & User Isolated\n• Warm Design System & Liquid Glass',
+              style: TextStyle(fontSize: 12, height: 1.5),
+            ),
+          ],
         ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Close',
+                style: TextStyle(
+                    color: AppColors.terracotta, fontWeight: FontWeight.w600)),
+          ),
+        ],
       ),
     );
   }
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  Widget build(BuildContext context) {
     final profileAsync = ref.watch(profileProvider);
     final semestersState = ref.watch(semestersProvider);
     final activeSem = semestersState.activeSemester;
@@ -366,7 +386,7 @@ class ProfileScreen extends ConsumerWidget {
         leading: IconButton(
           icon: const Icon(Icons.arrow_back_ios_new_rounded,
               size: 20, color: AppColors.ink),
-          onPressed: onBack,
+          onPressed: widget.onBack,
         ),
         title: const Text(
           'Profile',
@@ -376,7 +396,6 @@ class ProfileScreen extends ConsumerWidget {
             fontWeight: FontWeight.w700,
           ),
         ),
-        // No edit button in actions as requested
       ),
       body: profileAsync.when(
         loading: () => const Center(
@@ -394,7 +413,7 @@ class ProfileScreen extends ConsumerWidget {
               ),
               const SizedBox(height: 16),
 
-              // Compact User Card
+              // 1. Compact User Card (Clean profile overview without edit icons)
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
                 decoration: BoxDecoration(
@@ -435,56 +454,34 @@ class ProfileScreen extends ConsumerWidget {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Row(
-                            children: [
-                              Flexible(
-                                child: Text(
-                                  profile.fullName.isNotEmpty ? profile.fullName : 'Student',
-                                  style: const TextStyle(
-                                    fontWeight: FontWeight.w700,
-                                    fontSize: 16,
-                                    color: AppColors.ink,
-                                  ),
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                              ),
-                              const SizedBox(width: 6),
-                              InkWell(
-                                onTap: () => _showEditFieldSheet(
-                                  context: context,
-                                  ref: ref,
-                                  title: 'Edit Full Name',
-                                  initialValue: profile.fullName,
-                                  fieldKey: 'full_name',
-                                  hintText: 'Enter your full name',
-                                ),
-                                child: const Padding(
-                                  padding: EdgeInsets.all(2.0),
-                                  child: Icon(
-                                    Icons.edit_outlined,
-                                    size: 14,
-                                    color: AppColors.terracotta,
-                                  ),
-                                ),
-                              ),
-                            ],
+                          Text(
+                            profile.fullName.isNotEmpty ? profile.fullName : 'Student',
+                            style: const TextStyle(
+                              fontWeight: FontWeight.w700,
+                              fontSize: 16,
+                              color: AppColors.ink,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
                           ),
                           const SizedBox(height: 2),
-                          if (profile.studentIdNumber != null &&
-                              profile.studentIdNumber!.isNotEmpty)
-                            Text(
-                              profile.studentIdNumber!,
-                              style: AppTypography.bodySmall.copyWith(
-                                fontSize: 11,
-                                fontWeight: FontWeight.w500,
-                                color: AppColors.inkMuted,
-                              ),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                            ),
                           Text(
-                            profile.courseName.isNotEmpty ? profile.courseName : 'Course Not Set',
+                            profile.studentIdNumber != null && profile.studentIdNumber!.isNotEmpty
+                                ? (profile.studentIdNumber!.toLowerCase().startsWith('id:')
+                                    ? profile.studentIdNumber!
+                                    : 'ID: ${profile.studentIdNumber!}')
+                                : 'ID: Not Set',
+                            style: AppTypography.bodySmall.copyWith(
+                              fontSize: 11.5,
+                              fontWeight: FontWeight.w500,
+                              color: AppColors.inkMuted,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            profile.courseName.isNotEmpty ? profile.courseName : 'Not specified',
                             style: AppTypography.bodySmall.copyWith(
                               fontSize: 11.5,
                               fontWeight: FontWeight.w600,
@@ -502,7 +499,7 @@ class ProfileScreen extends ConsumerWidget {
 
               const SizedBox(height: 20),
 
-              // Academic Information Section
+              // 2. Academic Information Section (Inline Editable with pencil icons)
               _buildSectionHeader(Icons.school_rounded, 'Academic Information'),
               const SizedBox(height: 10),
               Container(
@@ -521,33 +518,30 @@ class ProfileScreen extends ConsumerWidget {
                 child: Column(
                   children: [
                     _buildRowItem(
+                      icon: Icons.person_outline_rounded,
+                      label: 'Full Name',
+                      value: profile.fullName.isNotEmpty ? profile.fullName : 'Not Set',
+                      fieldKey: 'full_name',
+                      profile: profile,
+                      activeSem: activeSem,
+                    ),
+                    const Divider(color: AppColors.divider, height: 1),
+                    _buildRowItem(
                       icon: Icons.account_balance_outlined,
                       label: 'University',
                       value: profile.universityName.isNotEmpty ? profile.universityName : 'Not Set',
-                      isEditable: true,
-                      onTap: () => _showEditFieldSheet(
-                        context: context,
-                        ref: ref,
-                        title: 'Edit University Name',
-                        initialValue: profile.universityName,
-                        fieldKey: 'university_name',
-                        hintText: 'Enter university name',
-                      ),
+                      fieldKey: 'university_name',
+                      profile: profile,
+                      activeSem: activeSem,
                     ),
                     const Divider(color: AppColors.divider, height: 1),
                     _buildRowItem(
                       icon: Icons.menu_book_outlined,
                       label: 'Course',
                       value: profile.courseName.isNotEmpty ? profile.courseName : 'Not Set',
-                      isEditable: true,
-                      onTap: () => _showEditFieldSheet(
-                        context: context,
-                        ref: ref,
-                        title: 'Edit Course Name',
-                        initialValue: profile.courseName,
-                        fieldKey: 'course_name',
-                        hintText: 'Enter course name',
-                      ),
+                      fieldKey: 'course_name',
+                      profile: profile,
+                      activeSem: activeSem,
                     ),
                     const Divider(color: AppColors.divider, height: 1),
                     _buildRowItem(
@@ -556,21 +550,18 @@ class ProfileScreen extends ConsumerWidget {
                       value: (profile.studentIdNumber != null && profile.studentIdNumber!.isNotEmpty)
                           ? profile.studentIdNumber!
                           : 'Not Set',
-                      isEditable: true,
-                      onTap: () => _showEditFieldSheet(
-                        context: context,
-                        ref: ref,
-                        title: 'Edit Student ID / Roll',
-                        initialValue: profile.studentIdNumber ?? '',
-                        fieldKey: 'student_id_number',
-                        hintText: 'Enter student ID or roll number',
-                      ),
+                      fieldKey: 'student_id_number',
+                      profile: profile,
+                      activeSem: activeSem,
                     ),
                     const Divider(color: AppColors.divider, height: 1),
                     _buildRowItem(
                       icon: Icons.date_range_outlined,
                       label: 'Total Years',
                       value: '${profile.academicDurationYears} Years',
+                      fieldKey: 'academic_duration_years',
+                      profile: profile,
+                      activeSem: activeSem,
                     ),
                     const Divider(color: AppColors.divider, height: 1),
                     _buildRowItem(
@@ -579,33 +570,22 @@ class ProfileScreen extends ConsumerWidget {
                       value: (profile.currentSemesterLabel != null && profile.currentSemesterLabel!.isNotEmpty)
                           ? profile.currentSemesterLabel!
                           : (activeSem?.label ?? 'Not Set'),
-                      onTap: () {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(
-                            content: const Text(
-                              'Semester changes are managed via Academic Setup Wizard below.',
-                            ),
-                            action: onOpenSetup != null
-                                ? SnackBarAction(
-                                    label: 'Open Wizard',
-                                    textColor: AppColors.amber,
-                                    onPressed: onOpenSetup!,
-                                  )
-                                : null,
-                            duration: const Duration(seconds: 3),
-                            behavior: SnackBarBehavior.floating,
-                          ),
-                        );
-                      },
+                      fieldKey: 'current_semester_label',
+                      profile: profile,
+                      activeSem: activeSem,
                     ),
                     if (activeSem != null) ...[
                       const Divider(color: AppColors.divider, height: 1),
                       _buildRowItem(
                         icon: Icons.date_range_outlined,
-                        label: 'Semester Dates',
-                        value: '${_formatShortDate(activeSem.startDate)} – ${_formatShortDate(activeSem.endDate)}',
-                        isEditable: true,
-                        onTap: () => _showEditSemesterDatesDialog(context, ref, activeSem),
+                        label: 'Semester Timeline',
+                        value: _formatShortDate(activeSem.startDate),
+                        secondaryValue: _formatShortDate(activeSem.endDate),
+                        fieldKey: 'semester_timeline',
+                        isDateRange: true,
+                        onDateTap: () => _pickSemesterTimeline(activeSem),
+                        profile: profile,
+                        activeSem: activeSem,
                       ),
                     ],
                     const Divider(color: AppColors.divider, height: 1),
@@ -614,6 +594,9 @@ class ProfileScreen extends ConsumerWidget {
                       label: 'Academic Session',
                       value:
                           '${profile.academicSessionStart ?? 2024} – ${profile.academicSessionEnd ?? 2028}',
+                      fieldKey: 'academic_session_start',
+                      profile: profile,
+                      activeSem: activeSem,
                     ),
                   ],
                 ),
@@ -621,7 +604,92 @@ class ProfileScreen extends ConsumerWidget {
 
               const SizedBox(height: 20),
 
-              // Attendance Settings Section
+              // 3. Prominent Academic Setup Wizard Card (Moved to just above Attendance Settings)
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  gradient: const LinearGradient(
+                    colors: [Color(0xFFFFF7F5), Color(0xFFFBF2EE)],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
+                  borderRadius: BorderRadius.circular(18),
+                  border: Border.all(color: AppColors.terracotta.withValues(alpha: 0.35)),
+                  boxShadow: const [
+                    BoxShadow(
+                      color: AppColors.shadowWarm,
+                      blurRadius: 8,
+                      offset: Offset(0, 2),
+                    ),
+                  ],
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Container(
+                          width: 38,
+                          height: 38,
+                          decoration: BoxDecoration(
+                            color: AppColors.terracotta,
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: const Icon(Icons.tune_rounded, color: Colors.white, size: 20),
+                        ),
+                        const SizedBox(width: 12),
+                        const Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Academic Setup',
+                                style: TextStyle(
+                                  fontWeight: FontWeight.w800,
+                                  fontSize: 15,
+                                  color: AppColors.ink,
+                                ),
+                              ),
+                              SizedBox(height: 2),
+                              Text(
+                                'Reconfigure semester, timings, subjects & routine',
+                                style: TextStyle(
+                                  fontSize: 11.5,
+                                  color: AppColors.inkMuted,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 14),
+                    SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton.icon(
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppColors.terracotta,
+                          foregroundColor: Colors.white,
+                          elevation: 0,
+                          padding: const EdgeInsets.symmetric(vertical: 11),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        ),
+                        icon: const Icon(Icons.auto_awesome_rounded, size: 16),
+                        label: const Text(
+                          'Open Academic Setup',
+                          style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
+                        ),
+                        onPressed: widget.onOpenSetup,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+
+              const SizedBox(height: 20),
+
+              // 4. Attendance Settings Section (Inline Editable with pencil icons)
               _buildSectionHeader(
                   Icons.track_changes_rounded, 'Attendance Settings'),
               const SizedBox(height: 10),
@@ -644,7 +712,10 @@ class ProfileScreen extends ConsumerWidget {
                       icon: Icons.timer_outlined,
                       label: 'Target Attendance',
                       value:
-                          '${profile.personalTarget.toStringAsFixed(0)}% (Default)',
+                          '${profile.personalTarget.toStringAsFixed(0)}%',
+                      fieldKey: 'personal_target',
+                      profile: profile,
+                      activeSem: activeSem,
                     ),
                     const Divider(color: AppColors.divider, height: 1),
                     _buildRowItem(
@@ -652,6 +723,52 @@ class ProfileScreen extends ConsumerWidget {
                       label: 'Low Attendance Alert',
                       value:
                           '${profile.lowAttendanceAlert.toStringAsFixed(0)}%',
+                      fieldKey: 'low_attendance_alert',
+                      profile: profile,
+                      activeSem: activeSem,
+                    ),
+                  ],
+                ),
+              ),
+
+              const SizedBox(height: 20),
+
+              // 5. App & Support Section
+              _buildSectionHeader(Icons.help_outline_rounded, 'Support & About'),
+              const SizedBox(height: 10),
+              Container(
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(18),
+                  border: Border.all(color: AppColors.divider),
+                  boxShadow: const [
+                    BoxShadow(
+                      color: AppColors.shadowWarm,
+                      blurRadius: 6,
+                      offset: Offset(0, 2),
+                    ),
+                  ],
+                ),
+                child: Column(
+                  children: [
+                    _buildRowItem(
+                      icon: Icons.support_agent_rounded,
+                      label: 'Help & Support',
+                      value: 'FAQ & Contact',
+                      fieldKey: 'help_support',
+                      isEditable: false,
+                      showChevron: true,
+                      onTap: () => _showHelpSupport(context),
+                    ),
+                    const Divider(color: AppColors.divider, height: 1),
+                    _buildRowItem(
+                      icon: Icons.info_outline_rounded,
+                      label: 'About AttendiFy',
+                      value: 'v1.0.1',
+                      fieldKey: 'about_app',
+                      isEditable: false,
+                      showChevron: true,
+                      onTap: () => _showAboutDialog(context),
                     ),
                   ],
                 ),
@@ -659,7 +776,7 @@ class ProfileScreen extends ConsumerWidget {
 
               const SizedBox(height: 28),
 
-              // Logout Button
+              // 6. Logout Button
               InkWell(
                 onTap: () {
                   ref.read(authProvider.notifier).logout();
@@ -692,7 +809,7 @@ class ProfileScreen extends ConsumerWidget {
                   ),
                 ),
               ),
-              const SizedBox(height: 20),
+              const SizedBox(height: 24),
             ],
           ),
         ),
@@ -719,62 +836,158 @@ class ProfileScreen extends ConsumerWidget {
     required IconData icon,
     required String label,
     required String value,
-    bool isEditable = false,
+    String? secondaryValue,
+    required String fieldKey,
+    bool isEditable = true,
+    bool isDateRange = false,
+    VoidCallback? onDateTap,
+    bool showChevron = false,
     VoidCallback? onTap,
+    AcademicProfileModel? profile,
+    SemesterModel? activeSem,
   }) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(12),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Left icon & label with dedicated fixed width for clean alignment
-            Icon(icon, size: 18, color: AppColors.inkMuted),
-            const SizedBox(width: 12),
-            SizedBox(
-              width: 120,
-              child: Text(
-                label,
-                style: const TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w500,
-                  color: AppColors.ink,
-                ),
+    final isEditingThis = _editingFieldKey == fieldKey;
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          Icon(icon, size: 18, color: AppColors.inkMuted),
+          const SizedBox(width: 12),
+          SizedBox(
+            width: 120,
+            child: Text(
+              label,
+              style: const TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w500,
+                color: AppColors.ink,
               ),
             ),
-            const SizedBox(width: 8),
-            // Right value aligned to the rightmost edge with multi-line wrapping
-            Expanded(
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.end,
-                crossAxisAlignment: CrossAxisAlignment.center,
-                children: [
-                  Flexible(
-                    child: Text(
-                      value,
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: isEditingThis
+                ? SizedBox(
+                    height: 36,
+                    child: TextField(
+                      controller: _editController,
+                      focusNode: _editFocusNode,
+                      autofocus: true,
                       textAlign: TextAlign.end,
                       style: const TextStyle(
-                        fontSize: 12.5,
+                        fontSize: 13,
                         fontWeight: FontWeight.w600,
-                        color: AppColors.inkSecondary,
+                        color: AppColors.ink,
+                      ),
+                      decoration: InputDecoration(
+                        isDense: true,
+                        contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                        filled: true,
+                        fillColor: AppColors.surfaceAlt,
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(8),
+                          borderSide: const BorderSide(color: AppColors.terracotta, width: 1.2),
+                        ),
+                        enabledBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(8),
+                          borderSide: const BorderSide(color: AppColors.terracotta, width: 1.2),
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(8),
+                          borderSide: const BorderSide(color: AppColors.terracotta, width: 1.6),
+                        ),
+                      ),
+                      onTapOutside: (_) {
+                        if (profile != null) {
+                          _saveCurrentEdit(profile, activeSem);
+                        }
+                      },
+                      onSubmitted: (_) {
+                        if (profile != null) {
+                          _saveCurrentEdit(profile, activeSem);
+                        }
+                      },
+                    ),
+                  )
+                : InkWell(
+                    borderRadius: BorderRadius.circular(8),
+                    onTap: onTap ??
+                        (isEditable
+                            ? () {
+                                if (isDateRange && onDateTap != null) {
+                                  onDateTap();
+                                } else {
+                                  _startEditing(fieldKey, value == 'Not Set' ? '' : value);
+                                }
+                              }
+                            : null),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 4),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.end,
+                        crossAxisAlignment: CrossAxisAlignment.center,
+                        children: [
+                          Flexible(
+                            child: secondaryValue != null
+                                ? Column(
+                                    crossAxisAlignment: CrossAxisAlignment.end,
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Text(
+                                        value,
+                                        textAlign: TextAlign.end,
+                                        style: const TextStyle(
+                                          fontSize: 12.5,
+                                          fontWeight: FontWeight.w600,
+                                          color: AppColors.inkSecondary,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 2),
+                                      Text(
+                                        secondaryValue,
+                                        textAlign: TextAlign.end,
+                                        style: const TextStyle(
+                                          fontSize: 12.5,
+                                          fontWeight: FontWeight.w600,
+                                          color: AppColors.inkSecondary,
+                                        ),
+                                      ),
+                                    ],
+                                  )
+                                : Text(
+                                    value,
+                                    textAlign: TextAlign.end,
+                                    style: const TextStyle(
+                                      fontSize: 12.5,
+                                      fontWeight: FontWeight.w600,
+                                      color: AppColors.inkSecondary,
+                                    ),
+                                  ),
+                          ),
+                          if (isEditable) ...[
+                            const SizedBox(width: 8),
+                            const Icon(
+                              Icons.edit_outlined,
+                              size: 14,
+                              color: AppColors.terracotta,
+                            ),
+                          ],
+                          if (showChevron) ...[
+                            const SizedBox(width: 6),
+                            const Icon(
+                              Icons.arrow_forward_ios_rounded,
+                              size: 12,
+                              color: AppColors.inkMuted,
+                            ),
+                          ],
+                        ],
                       ),
                     ),
                   ),
-                  if (isEditable) ...[
-                    const SizedBox(width: 6),
-                    const Icon(
-                      Icons.edit_outlined,
-                      size: 13,
-                      color: AppColors.terracotta,
-                    ),
-                  ],
-                ],
-              ),
-            ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }

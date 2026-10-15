@@ -10,6 +10,21 @@ class InsightOut(BaseModel):
     message: str
     action: Optional[str] = None
 
+class TypeBreakdownMetrics(BaseModel):
+    """Theory or Lab breakdown metrics for a subject."""
+    attended: int = 0
+    absent: int = 0
+    conducted: int = 0
+    percentage: Optional[float] = None
+    has_data: bool = False
+    status: str = "NO_DATA"
+    status_label: str = "No data yet"
+    classes_needed_for_min: Optional[int] = None
+    classes_needed_for_target: Optional[int] = None
+    max_safe_absences: int = 0
+    can_miss_message: Optional[str] = None
+    recovery_message: Optional[str] = None
+
 class SubjectAnalyticsOut(BaseModel):
     subject_id: str
     name: str
@@ -17,6 +32,7 @@ class SubjectAnalyticsOut(BaseModel):
     faculty_name: Optional[str]
     color: str
     icon: str
+    # Overall subject metrics (Theory + Lab + Unclassified)
     attended: int
     absent: int
     conducted: int
@@ -31,6 +47,19 @@ class SubjectAnalyticsOut(BaseModel):
     max_safe_absences: int
     can_miss_message: str
     recovery_message: str
+    # Theory/Lab breakdown
+    theory_metrics: Optional[TypeBreakdownMetrics] = None
+    lab_metrics: Optional[TypeBreakdownMetrics] = None
+    unclassified_attended: int = 0
+    unclassified_conducted: int = 0
+    # Forecast fields (future classes until semester end)
+    remaining_classes: Optional[int] = None
+    remaining_theory_classes: Optional[int] = None
+    remaining_lab_classes: Optional[int] = None
+    projected_final_percentage: Optional[float] = None
+    max_future_absences_for_min: Optional[int] = None
+    max_future_absences_for_target: Optional[int] = None
+    forecast_status: Optional[str] = None  # COMPLETE, INCOMPLETE_*
 
 class AttendanceTrendPoint(BaseModel):
     label: str # Month or week label, e.g. "Aug", "Sep", "Oct", "Nov", "Dec"
@@ -62,3 +91,8 @@ class AnalyticsOverviewOut(BaseModel):
     insights: List[InsightOut]
     trends: List[AttendanceTrendPoint]
     month_over_month_change: float = 0.0
+    
+    # Semester-wide forecast
+    total_remaining_classes: Optional[int] = None
+    projected_overall_final_percentage: Optional[float] = None
+    forecast_status: Optional[str] = None

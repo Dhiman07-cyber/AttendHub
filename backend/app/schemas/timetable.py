@@ -11,6 +11,8 @@ class TimetableEntryCreate(BaseModel):
     room: Optional[str] = None
     effective_from: Optional[date] = None
     effective_to: Optional[date] = None
+    # THEORY, LAB, or UNSPECIFIED — defaults to None (treated as UNSPECIFIED)
+    class_type: Optional[str] = None
 
 class TimetableEntryUpdate(BaseModel):
     day_of_week: Optional[int] = Field(None, ge=0, le=6)
@@ -20,6 +22,7 @@ class TimetableEntryUpdate(BaseModel):
     room: Optional[str] = None
     effective_from: Optional[date] = None
     effective_to: Optional[date] = None
+    class_type: Optional[str] = None
 
 class TimetableEntryOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
@@ -37,6 +40,7 @@ class TimetableEntryOut(BaseModel):
     room: Optional[str]
     effective_from: Optional[date]
     effective_to: Optional[date]
+    class_type: Optional[str] = None  # THEORY, LAB, or UNSPECIFIED/None for legacy
 
 class WeeklySlotStatusOut(BaseModel):
     timetable_entry_id: str
@@ -51,7 +55,7 @@ class WeeklySlotStatusOut(BaseModel):
     end_time: Optional[str] = None
     room: Optional[str] = None
     faculty_name: Optional[str] = None
-    class_type: str = "Theory"
+    class_type: Optional[str] = None  # THEORY, LAB, UNSPECIFIED, or None
     session_id: Optional[str] = None
     attendance_status: Optional[str] = None
     is_attended: bool = False

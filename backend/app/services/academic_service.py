@@ -79,11 +79,17 @@ async def update_user_profile(db: AsyncSession, user_id: str, data: AcademicProf
 def _compute_semester_stats(sem: Semester) -> SemesterOut:
     today = date.today()
     total_days = max(1, (sem.end_date - sem.start_date).days)
-    elapsed_days = max(0, min(total_days, (today - sem.start_date).days))
     
-    current_week = min(sem.total_weeks, max(1, (elapsed_days // 7) + 1))
-    weeks_remaining = max(0, sem.total_weeks - current_week)
-    progress_pct = round(min(100.0, (elapsed_days / total_days) * 100.0), 1)
+    if today < sem.start_date:
+        elapsed_days = 0
+        current_week = 0
+        weeks_remaining = sem.total_weeks
+        progress_pct = 0.0
+    else:
+        elapsed_days = max(0, min(total_days, (today - sem.start_date).days))
+        current_week = min(sem.total_weeks, max(1, (elapsed_days // 7) + 1))
+        weeks_remaining = max(0, sem.total_weeks - current_week)
+        progress_pct = round(min(100.0, (elapsed_days / total_days) * 100.0), 1)
 
     return SemesterOut(
         id=sem.id,
@@ -95,6 +101,7 @@ def _compute_semester_stats(sem: Semester) -> SemesterOut:
         status=sem.status,
         is_active=sem.is_active,
         total_weeks=sem.total_weeks,
+        working_days=sem.working_days,  # Use property to get list
         current_week=current_week,
         weeks_remaining=weeks_remaining,
         progress_percentage=progress_pct
@@ -166,6 +173,8 @@ async def create_semester(db: AsyncSession, user_id: str, data: SemesterCreate) 
         is_active=False,
         total_weeks=data.total_weeks or 16
     )
+    if data.working_days:
+        sem.working_days = data.working_days
     db.add(sem)
     await db.commit()
     await db.refresh(sem)
@@ -191,6 +200,8 @@ async def update_semester(db: AsyncSession, user_id: str, semester_id: str, data
     elif data.start_date is not None or data.end_date is not None:
         total_days = max(1, (sem.end_date - sem.start_date).days)
         sem.total_weeks = max(1, round(total_days / 7))
+    if data.working_days is not None:
+        sem.working_days = data.working_days
 
     await db.commit()
     await db.refresh(sem)
@@ -214,10 +225,10 @@ async def get_setup_status(db: AsyncSession, user_id: str) -> SetupStatusOut:
         subjects = sub_res.scalars().all()
         subject_count = len(subjects)
         
-    is_profile_complete = bool(prof.university_name and prof.course_name and prof.university_name.strip() and prof.course_name.strip())
+    is_profile_complete = bool(prof is not None)
     has_active_semester = active_sem is not None
     is_sem_configured = subject_count > 0
-    setup_complete = is_profile_complete and has_active_semester and is_sem_configured
+    setup_complete = has_active_semester and is_sem_configured
     
     return SetupStatusOut(
         is_profile_complete=is_profile_complete,
@@ -243,8 +254,8 @@ async def execute_academic_setup(db: AsyncSession, user_id: str, request: FullAc
     if not profile:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Profile not found.")
         
-    profile.university_name = request.university_name.strip()
-    profile.course_name = request.course_name.strip()
+    profile.university_name = (request.university_name or "Not specified").strip()
+    profile.course_name = (request.course_name or "Not specified").strip()
     if request.student_id_number is not None:
         profile.student_id_number = request.student_id_number.strip()
     profile.academic_duration_years = request.academic_duration_years
@@ -348,12 +359,41 @@ async def execute_academic_setup(db: AsyncSession, user_id: str, request: FullAc
             await db.flush()
             created_subjects_map[new_sub.name.lower()] = new_sub
 
+    # Ensure inactive Break Time subject exists if any timetable entry is a break
+    has_break_slot = any(
+        "break" in tt.subject_name.lower() or tt.subject_name.strip().lower() in ("break", "break time", "recess", "lunch")
+        for tt in request.timetable_entries
+    )
+    if has_break_slot:
+        break_key = "break time"
+        if break_key not in created_subjects_map and "break" not in created_subjects_map:
+            b_stmt = select(Subject).where(Subject.semester_id == target_sem.id, Subject.name.ilike("%break%"))
+            b_res = await db.execute(b_stmt)
+            existing_break = b_res.scalars().first()
+            if not existing_break:
+                existing_break = Subject(
+                    semester_id=target_sem.id,
+                    name="Break Time",
+                    code="BREAK",
+                    faculty_name="",
+                    color="#D9A35B",
+                    icon="coffee",
+                    is_active=False
+                )
+                db.add(existing_break)
+                await db.flush()
+            created_subjects_map["break time"] = existing_break
+            created_subjects_map["break"] = existing_break
+
     # Timetable entries (clean up prior entries for this semester to prevent duplication)
     await db.execute(
         delete(TimetableEntry).where(TimetableEntry.semester_id == target_sem.id)
     )
     for tt_draft in request.timetable_entries:
-        sub_obj = created_subjects_map.get(tt_draft.subject_name.strip().lower())
+        key = tt_draft.subject_name.strip().lower()
+        sub_obj = created_subjects_map.get(key)
+        if not sub_obj and "break" in key:
+            sub_obj = created_subjects_map.get("break time") or created_subjects_map.get("break")
         if sub_obj:
             tt_entry = TimetableEntry(
                 semester_id=target_sem.id,
@@ -490,7 +530,10 @@ async def get_academic_setup_data(
 
     if target_sem:
         # Load subjects for target_sem
-        sub_stmt = select(Subject).where(Subject.semester_id == target_sem.id, Subject.is_active == True)
+        sub_stmt = select(Subject).where(
+            Subject.semester_id == target_sem.id,
+            (Subject.is_active == True) | (Subject.name.ilike("%break%"))
+        )
         sub_res = await db.execute(sub_stmt)
         subjects = sub_res.scalars().all()
         subj_drafts = [
@@ -499,7 +542,7 @@ async def get_academic_setup_data(
                 code=s.code,
                 faculty_name=s.faculty_name,
                 color=s.color or "#C96E5B"
-            ) for s in subjects
+            ) for s in subjects if s.is_active and "break" not in s.name.lower()
         ]
         subj_id_map = {s.id: s.name for s in subjects}
 

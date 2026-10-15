@@ -17,11 +17,13 @@ import 'providers/today_provider.dart';
 class TodayScreen extends ConsumerStatefulWidget {
   final VoidCallback onOpenDrawer;
   final VoidCallback? onNavigateToProfile;
+  final VoidCallback? onOpenSetup;
 
   const TodayScreen({
     super.key,
     required this.onOpenDrawer,
     this.onNavigateToProfile,
+    this.onOpenSetup,
   });
 
   @override
@@ -134,7 +136,8 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
     final faculty = entry['faculty_name'] as String? ?? 'Department Faculty';
     final classType = entry['class_type'] as String? ?? 'Theory';
     final colorHex = entry['subject_color'] as String? ?? '#C96E5B';
-    final accentColor = AppColors.getSubjectColor(colorHex);
+    final isBreak = subName.toLowerCase().contains('break') || entry['subject_code'] == 'BREAK';
+    final accentColor = isBreak ? AppColors.amber : AppColors.getSubjectColor(colorHex);
     final isAttended = entry['is_attended'] == true;
     final isAbsent = entry['is_absent'] == true;
     final isNotHeld = entry['is_not_held'] == true;
@@ -194,7 +197,7 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
                     color: accentColor.withValues(alpha: 0.15),
                     borderRadius: BorderRadius.circular(12),
                   ),
-                  child: Icon(Icons.school_rounded, color: accentColor, size: 24),
+                  child: Icon(isBreak ? Icons.coffee_rounded : Icons.school_rounded, color: accentColor, size: 24),
                 ),
                 const SizedBox(width: 14),
                 Expanded(
@@ -235,26 +238,63 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
               spacing: 8,
               runSpacing: 8,
               children: [
-                _buildInfoBadge(Icons.category_outlined, classType, AppColors.terracotta, AppColors.terracottaLight),
-                _buildInfoBadge(Icons.meeting_room_outlined, room, AppColors.ocean, AppColors.oceanLight),
-                _buildInfoBadge(Icons.person_outline_rounded, faculty, AppColors.sageDark, AppColors.sageLight),
+                if (isBreak)
+                  _buildInfoBadge(Icons.coffee_rounded, 'Recess / Break', AppColors.amberDark, AppColors.amberLight)
+                else ...[
+                  _buildInfoBadge(
+                    classType.toLowerCase() == 'lab' ? Icons.science_outlined : Icons.menu_book_rounded,
+                    classType,
+                    classType.toLowerCase() == 'lab' ? AppColors.ocean : AppColors.terracotta,
+                    classType.toLowerCase() == 'lab' ? AppColors.oceanLight : AppColors.terracottaLight,
+                  ),
+                  _buildInfoBadge(Icons.meeting_room_outlined, room, AppColors.sageDark, AppColors.sageLight),
+                  _buildInfoBadge(Icons.person_outline_rounded, faculty, AppColors.inkMuted, const Color(0xFFEFECE9)),
+                ],
                 if (isLive)
-                  _buildInfoBadge(Icons.radio_button_checked, 'Live Right Now', AppColors.coral, AppColors.coralLight)
+                  _buildInfoBadge(Icons.radio_button_checked, isBreak ? 'Break Ongoing' : 'Live Right Now', isBreak ? AppColors.amberDark : AppColors.coral, isBreak ? AppColors.amberLight : AppColors.coralLight)
                 else if (isNext)
-                  _buildInfoBadge(Icons.schedule_rounded, 'Next Class Today', AppColors.amberDark, AppColors.amberLight),
-                if (isAttended)
-                  _buildInfoBadge(Icons.check_circle_rounded, 'Attended', AppColors.sageDark, AppColors.sageLight)
-                else if (isAbsent)
-                  _buildInfoBadge(Icons.cancel_outlined, 'Absent', AppColors.coral, AppColors.coralLight)
-                else if (isNotHeld)
-                  _buildInfoBadge(Icons.remove_circle_outline, 'Not Held', AppColors.inkMuted, const Color(0xFFEFECE9)),
+                  _buildInfoBadge(Icons.schedule_rounded, isBreak ? 'Next Up: Break' : 'Next Class Today', AppColors.amberDark, AppColors.amberLight),
+                if (!isBreak) ...[
+                  if (isAttended)
+                    _buildInfoBadge(Icons.check_circle_rounded, 'Attended', AppColors.sageDark, AppColors.sageLight)
+                  else if (isAbsent)
+                    _buildInfoBadge(Icons.cancel_outlined, 'Absent', AppColors.coral, AppColors.coralLight)
+                  else if (isNotHeld)
+                    _buildInfoBadge(Icons.remove_circle_outline, 'Not Held', AppColors.inkMuted, const Color(0xFFEFECE9)),
+                ],
               ],
             ),
 
             const SizedBox(height: 20),
 
-            // Attendance Action Section or Future Notice
-            if (isFuture)
+            // Attendance Action Section or Future Notice or Break Notice
+            if (isBreak)
+              Container(
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFFEF9EE),
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(color: AppColors.amber.withValues(alpha: 0.35)),
+                ),
+                child: const Row(
+                  children: [
+                    Icon(Icons.coffee_rounded, size: 20, color: AppColors.amberDark),
+                    SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        'Break Period • No attendance tracking required.',
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                          color: AppColors.amberDark,
+                          height: 1.4,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              )
+            else if (isFuture)
               Container(
                 padding: const EdgeInsets.all(14),
                 decoration: BoxDecoration(
@@ -373,13 +413,14 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
                 ),
                 icon: const Icon(Icons.tune_rounded, size: 18),
-                label: const Text('Edit Routine in Setup Wizard', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
+                label: const Text('Edit Routine in Academic Setup', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
                 onPressed: () {
                   Navigator.pop(ctx);
                   Navigator.of(context).push(
                     MaterialPageRoute(
                       builder: (_) => AcademicSetupScreen(
                         onComplete: () => ref.read(todayProvider.notifier).loadToday(),
+                        onCancel: () => Navigator.pop(context),
                       ),
                     ),
                   );
@@ -707,7 +748,7 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
               ),
               const SizedBox(height: 6),
               const Text(
-                'Add your recurring classes in the Academic Setup Wizard to view your weekly routine grid.',
+                'Add your recurring classes in Academic Setup to view your weekly routine grid.',
                 style: TextStyle(fontSize: 12, color: AppColors.inkMuted),
                 textAlign: TextAlign.center,
               ),
@@ -722,13 +763,18 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
                 icon: const Icon(Icons.tune_rounded, size: 18),
                 label: const Text('Set Up Timetable', style: TextStyle(fontWeight: FontWeight.w700)),
                 onPressed: () {
-                  Navigator.of(context).push(
-                    MaterialPageRoute(
-                      builder: (_) => AcademicSetupScreen(
-                        onComplete: () => ref.read(todayProvider.notifier).loadToday(),
+                  if (widget.onOpenSetup != null) {
+                    widget.onOpenSetup!();
+                  } else {
+                    Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (_) => AcademicSetupScreen(
+                          onComplete: () => ref.read(todayProvider.notifier).loadToday(),
+                          onCancel: () => Navigator.of(context).pop(),
+                        ),
                       ),
-                    ),
-                  );
+                    );
+                  }
                 },
               ),
             ],
@@ -1174,12 +1220,21 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
     final room = entry['room'] as String? ?? 'Room 101';
     final classType = entry['class_type'] as String? ?? 'Theory';
     final colorHex = entry['subject_color'] as String? ?? '#C96E5B';
-    final accentColor = AppColors.getSubjectColor(colorHex);
+    final isBreak = subName.toLowerCase().contains('break') || entry['subject_code'] == 'BREAK';
+    final accentColor = isBreak ? AppColors.amber : AppColors.getSubjectColor(colorHex);
 
     Color cardBg;
     Border? border;
 
-    if (isLive) {
+    if (isBreak) {
+      cardBg = const Color(0xFFFEF9EE);
+      border = Border.all(
+        color: isLive
+            ? AppColors.amberDark
+            : AppColors.amber.withValues(alpha: 0.45),
+        width: isLive ? 1.5 : 1,
+      );
+    } else if (isLive) {
       cardBg = const Color(0xFFFBECE9);
       border = Border.all(color: AppColors.terracotta, width: 1.5);
     } else if (isNext) {
@@ -1218,16 +1273,31 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
                     decoration: BoxDecoration(
-                      color: accentColor.withValues(alpha: 0.2),
+                      color: isBreak
+                          ? AppColors.amber.withValues(alpha: 0.2)
+                          : accentColor.withValues(alpha: 0.2),
                       borderRadius: BorderRadius.circular(4),
                     ),
-                    child: Text(
-                      classType,
-                      style: TextStyle(
-                        fontSize: 8.5,
-                        fontWeight: FontWeight.w800,
-                        color: accentColor,
-                      ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        if (!isBreak) ...[
+                          Icon(
+                            classType.toLowerCase() == 'lab' ? Icons.science_outlined : Icons.menu_book_rounded,
+                            size: 9,
+                            color: isBreak ? AppColors.amberDark : accentColor,
+                          ),
+                          const SizedBox(width: 3),
+                        ],
+                        Text(
+                          isBreak ? 'BREAK' : classType.toUpperCase(),
+                          style: TextStyle(
+                            fontSize: 8.5,
+                            fontWeight: FontWeight.w800,
+                            color: isBreak ? AppColors.amberDark : accentColor,
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                   const Spacer(),
@@ -1235,7 +1305,7 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1.5),
                       decoration: BoxDecoration(
-                        color: AppColors.terracotta,
+                        color: isBreak ? AppColors.amberDark : AppColors.terracotta,
                         borderRadius: BorderRadius.circular(4),
                       ),
                       child: const Text(
@@ -1255,7 +1325,7 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
                         style: TextStyle(fontSize: 8, fontWeight: FontWeight.w900, color: Colors.white),
                       ),
                     ),
-                  ] else if (isAttended) ...[
+                  ] else if (isAttended && !isBreak) ...[
                     // Strictly actual persisted ATTENDED record shows a green checkmark
                     const Icon(Icons.check_circle_rounded, size: 13, color: AppColors.sageDark),
                   ],
@@ -1263,16 +1333,28 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
               ),
 
               // Middle: Subject Name
-              Text(
-                subName,
-                style: TextStyle(
-                  fontWeight: FontWeight.w800,
-                  fontSize: 11,
-                  color: isLive ? AppColors.terracottaDark : AppColors.ink,
-                  height: 1.2,
-                ),
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
+              Row(
+                children: [
+                  if (isBreak) ...[
+                    const Icon(Icons.coffee_rounded, size: 13, color: AppColors.amberDark),
+                    const SizedBox(width: 4),
+                  ],
+                  Expanded(
+                    child: Text(
+                      subName,
+                      style: TextStyle(
+                        fontWeight: FontWeight.w800,
+                        fontSize: 11,
+                        color: isBreak
+                            ? AppColors.amberDark
+                            : (isLive ? AppColors.terracottaDark : AppColors.ink),
+                        height: 1.2,
+                      ),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                ],
               ),
 
               // Bottom: Time & Room
@@ -1282,7 +1364,9 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
                   const SizedBox(width: 3),
                   Expanded(
                     child: Text(
-                      room.isNotEmpty ? '$startTime-$endTime • $room' : '$startTime-$endTime',
+                      isBreak
+                          ? '$startTime-$endTime'
+                          : (room.isNotEmpty ? '$startTime-$endTime • $room' : '$startTime-$endTime'),
                       style: const TextStyle(fontSize: 9.5, fontWeight: FontWeight.w600, color: AppColors.inkMuted),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
@@ -1333,6 +1417,7 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
     }
 
     if (liveClass != null) {
+      final isLiveBreak = (liveClass['subject_name'] as String? ?? '').toLowerCase().contains('break') || liveClass['subject_code'] == 'BREAK';
       return LiquidGlassCard(
         padding: const EdgeInsets.all(16),
         child: Row(
@@ -1341,10 +1426,14 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
               width: 44,
               height: 44,
               decoration: BoxDecoration(
-                color: AppColors.terracotta.withValues(alpha: 0.15),
+                color: (isLiveBreak ? AppColors.amber : AppColors.terracotta).withValues(alpha: 0.15),
                 shape: BoxShape.circle,
               ),
-              child: const Icon(Icons.radio_button_checked, color: AppColors.terracotta, size: 22),
+              child: Icon(
+                isLiveBreak ? Icons.coffee_rounded : Icons.radio_button_checked,
+                color: isLiveBreak ? AppColors.amberDark : AppColors.terracotta,
+                size: 22,
+              ),
             ),
             const SizedBox(width: 14),
             Expanded(
@@ -1359,10 +1448,13 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
                       Container(
                         padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                         decoration: BoxDecoration(
-                          color: AppColors.terracotta,
+                          color: isLiveBreak ? AppColors.amberDark : AppColors.terracotta,
                           borderRadius: BorderRadius.circular(6),
                         ),
-                        child: const Text('LIVE CLASS NOW', style: TextStyle(fontSize: 9, fontWeight: FontWeight.w900, color: Colors.white)),
+                        child: Text(
+                          isLiveBreak ? 'BREAK TIME NOW' : 'LIVE CLASS NOW',
+                          style: const TextStyle(fontSize: 9, fontWeight: FontWeight.w900, color: Colors.white),
+                        ),
                       ),
                       Text(
                         '${liveClass['start_time']} – ${liveClass['end_time']}',
@@ -1378,7 +1470,7 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
                     style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 14, color: AppColors.ink),
                   ),
                   Text(
-                    '${liveClass['room'] ?? 'Room'} • ${liveClass['faculty_name'] ?? 'Faculty'}',
+                    isLiveBreak ? 'Break Period • No attendance required' : '${liveClass['room'] ?? 'Room'} • ${liveClass['faculty_name'] ?? 'Faculty'}',
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: const TextStyle(fontSize: 11, color: AppColors.inkMuted),
@@ -1392,6 +1484,7 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
     }
 
     if (nextClass != null) {
+      final isNextBreak = (nextClass['subject_name'] as String? ?? '').toLowerCase().contains('break') || nextClass['subject_code'] == 'BREAK';
       return LiquidGlassCard(
         padding: const EdgeInsets.all(16),
         child: Row(
@@ -1403,7 +1496,11 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
                 color: AppColors.amber.withValues(alpha: 0.15),
                 shape: BoxShape.circle,
               ),
-              child: const Icon(Icons.schedule_rounded, color: AppColors.amberDark, size: 22),
+              child: Icon(
+                isNextBreak ? Icons.coffee_rounded : Icons.schedule_rounded,
+                color: AppColors.amberDark,
+                size: 22,
+              ),
             ),
             const SizedBox(width: 14),
             Expanded(
@@ -1421,7 +1518,10 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
                           color: AppColors.amberDark,
                           borderRadius: BorderRadius.circular(6),
                         ),
-                        child: const Text('NEXT CLASS TODAY', style: TextStyle(fontSize: 9, fontWeight: FontWeight.w900, color: Colors.white)),
+                        child: Text(
+                          isNextBreak ? 'NEXT UP: BREAK' : 'NEXT CLASS TODAY',
+                          style: const TextStyle(fontSize: 9, fontWeight: FontWeight.w900, color: Colors.white),
+                        ),
                       ),
                       Text(
                         'Starts at ${nextClass['start_time']}',
@@ -1437,7 +1537,7 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
                     style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 14, color: AppColors.ink),
                   ),
                   Text(
-                    '${nextClass['room'] ?? 'Room'} • ${nextClass['faculty_name'] ?? 'Faculty'}',
+                    isNextBreak ? 'Break Period' : '${nextClass['room'] ?? 'Room'} • ${nextClass['faculty_name'] ?? 'Faculty'}',
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: const TextStyle(fontSize: 11, color: AppColors.inkMuted),

@@ -1,9 +1,7 @@
 import 'dart:ui';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import '../../core/theme/app_colors.dart';
-import '../../core/theme/app_radii.dart';
 import '../../core/theme/app_shadows.dart';
 
 class LiquidGlassBottomNav extends StatefulWidget {
@@ -36,7 +34,6 @@ class _LiquidGlassBottomNavState extends State<LiquidGlassBottomNav> {
     setState(() {
       _hoveredIndex = target;
     });
-    HapticFeedback.selectionClick();
   }
 
   void _onPointerMove(PointerMoveEvent event, double totalWidth) {
@@ -51,7 +48,6 @@ class _LiquidGlassBottomNavState extends State<LiquidGlassBottomNav> {
 
     final newIdx = _getIndexFromPosition(event.localPosition.dx, totalWidth);
     if (newIdx != _hoveredIndex) {
-      HapticFeedback.selectionClick();
       setState(() => _hoveredIndex = newIdx);
     }
   }
@@ -59,7 +55,6 @@ class _LiquidGlassBottomNavState extends State<LiquidGlassBottomNav> {
   void _onPointerUp(PointerUpEvent event, double totalWidth) {
     final target = _hoveredIndex ?? _getIndexFromPosition(event.localPosition.dx, totalWidth);
     if (event.localPosition.dy >= -40 && event.localPosition.dy <= 105) {
-      HapticFeedback.lightImpact();
       widget.onTap(target);
     }
     setState(() {
@@ -106,7 +101,7 @@ class _LiquidGlassBottomNavState extends State<LiquidGlassBottomNav> {
             padding: const EdgeInsets.symmetric(horizontal: 4),
             decoration: BoxDecoration(
               color: Colors.white.withValues(alpha: kIsWeb ? 0.95 : 0.88),
-              borderRadius: AppRadii.radiusPill,
+              borderRadius: BorderRadius.circular(20),
               border: Border.all(
                 color: Colors.white.withValues(alpha: 0.9),
                 width: 1.5,
@@ -124,7 +119,7 @@ class _LiquidGlassBottomNavState extends State<LiquidGlassBottomNav> {
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
           child: ClipRRect(
-            borderRadius: AppRadii.radiusPill,
+            borderRadius: BorderRadius.circular(20),
             child: kIsWeb
                 ? navContainer
                 : BackdropFilter(
@@ -144,15 +139,14 @@ class _LiquidGlassBottomNavState extends State<LiquidGlassBottomNav> {
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 140),
         curve: Curves.easeOutCubic,
-        padding: const EdgeInsets.symmetric(
-          horizontal: 6,
-          vertical: 5,
-        ),
+        margin: const EdgeInsets.symmetric(horizontal: 2, vertical: 6),
+        height: 52,
+        alignment: Alignment.center,
         decoration: BoxDecoration(
           color: isSelected
               ? AppColors.terracotta.withValues(alpha: 0.12)
               : Colors.transparent,
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: BorderRadius.circular(14),
         ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -164,16 +158,19 @@ class _LiquidGlassBottomNavState extends State<LiquidGlassBottomNav> {
               color: isSelected ? AppColors.terracotta : AppColors.inkMuted,
             ),
             const SizedBox(height: 2),
-            FittedBox(
-              fit: BoxFit.scaleDown,
-              child: Text(
-                label,
-                maxLines: 1,
-                style: TextStyle(
-                  fontSize: 10,
-                  letterSpacing: -0.2,
-                  fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
-                  color: isSelected ? AppColors.terracotta : AppColors.inkMuted,
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 2),
+              child: FittedBox(
+                fit: BoxFit.scaleDown,
+                child: Text(
+                  label,
+                  maxLines: 1,
+                  style: TextStyle(
+                    fontSize: 10,
+                    letterSpacing: -0.2,
+                    fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
+                    color: isSelected ? AppColors.terracotta : AppColors.inkMuted,
+                  ),
                 ),
               ),
             ),

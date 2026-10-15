@@ -79,18 +79,16 @@ class LocalStorage {
     try {
       await _secureStorage.deleteAll();
     } catch (_) {}
+    _memDashboard = null;
+    _memAnalytics = null;
     final prefs = await SharedPreferences.getInstance();
     final onboarded = prefs.getBool(AppConstants.keyHasOnboarded) ?? false;
-    await prefs.remove(AppConstants.keyAccessToken);
-    await prefs.remove(AppConstants.keyRefreshToken);
-    await prefs.remove(AppConstants.keyUserId);
-    await prefs.remove(AppConstants.keyUserEmail);
-    await prefs.remove(AppConstants.keyUserName);
-    await prefs.remove(AppConstants.keyUserAvatar);
-    await prefs.remove(_keyCachedSemesters);
-    await prefs.remove(_keyCachedSetupStatus);
-    await clearSemesterCache();
-    await clearNavState();
+    final allKeys = prefs.getKeys().toList();
+    for (final k in allKeys) {
+      if (k != AppConstants.keyHasOnboarded) {
+        await prefs.remove(k);
+      }
+    }
     if (onboarded) {
       await prefs.setBool(AppConstants.keyHasOnboarded, true);
     }

@@ -13,14 +13,19 @@ import 'subject_detail_screen.dart';
 import '../../shared/widgets/app_toast.dart';
 
 
+import '../../shared/widgets/liquid_glass_card.dart';
+import '../setup/academic_setup_screen.dart';
+
 class SubjectsScreen extends ConsumerWidget {
   final VoidCallback onOpenDrawer;
   final VoidCallback? onNavigateToProfile;
+  final VoidCallback? onOpenSetup;
 
   const SubjectsScreen({
     super.key,
     required this.onOpenDrawer,
     this.onNavigateToProfile,
+    this.onOpenSetup,
   });
 
   void _showAddSubjectSheet(BuildContext context, WidgetRef ref) {
@@ -128,7 +133,10 @@ class SubjectsScreen extends ConsumerWidget {
 
             const SizedBox(height: 18),
 
-            // Search Bar
+            if (state.subjects.isEmpty && !state.isLoading) ...[
+              _buildEmptyTimetableCard(context, ref),
+            ] else ...[
+              // Search Bar
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16),
               child: Container(
@@ -404,8 +412,82 @@ class SubjectsScreen extends ConsumerWidget {
                           },
                         ),
             ),
+            ],
 
             const SizedBox(height: 24),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildEmptyTimetableCard(BuildContext context, WidgetRef ref) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      child: LiquidGlassCard(
+        padding: const EdgeInsets.all(28),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 56,
+              height: 56,
+              decoration: BoxDecoration(
+                color: AppColors.terracotta.withValues(alpha: 0.12),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(
+                Icons.calendar_view_week_rounded,
+                color: AppColors.terracotta,
+                size: 28,
+              ),
+            ),
+            const SizedBox(height: 16),
+            const Text(
+              "Your timetable isn't set up yet.",
+              style: TextStyle(
+                fontWeight: FontWeight.w800,
+                fontSize: 16,
+                color: AppColors.ink,
+              ),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 6),
+            const Text(
+              'Add your subjects and class schedule in Academic Setup to begin tracking courses.',
+              style: TextStyle(fontSize: 12, color: AppColors.inkMuted),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 20),
+            ElevatedButton.icon(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.terracotta,
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+              icon: const Icon(Icons.tune_rounded, size: 18),
+              label: const Text(
+                'Set Up Timetable',
+                style: TextStyle(fontWeight: FontWeight.w700),
+              ),
+              onPressed: () {
+                if (onOpenSetup != null) {
+                  onOpenSetup!();
+                } else {
+                  Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (_) => AcademicSetupScreen(
+                        onComplete: () => ref.read(subjectsProvider.notifier).loadSubjects(),
+                        onCancel: () => Navigator.of(context).pop(),
+                      ),
+                    ),
+                  );
+                }
+              },
+            ),
           ],
         ),
       ),

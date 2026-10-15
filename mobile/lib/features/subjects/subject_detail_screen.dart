@@ -188,6 +188,50 @@ class SubjectDetailScreen extends ConsumerWidget {
                       ],
                     ),
                   ],
+                  
+                  // Theory/Lab Breakdown (NEW)
+                  if (hasData && (currentSubject.theoryMetrics?.hasData == true || 
+                                 currentSubject.labMetrics?.hasData == true)) ...[
+                    const SizedBox(height: 16),
+                    const Divider(color: AppColors.divider),
+                    const SizedBox(height: 14),
+                    
+                    Text(
+                      'Theory & Lab Breakdown',
+                      style: AppTypography.bodySmall.copyWith(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                        color: AppColors.inkMuted,
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    
+                    Row(
+                      children: [
+                        if (currentSubject.theoryMetrics?.hasData == true)
+                          Expanded(
+                            child: _buildTypeBreakdownCard(
+                              context,
+                              label: 'Theory',
+                              metrics: currentSubject.theoryMetrics!,
+                              color: AppColors.sage,
+                            ),
+                          ),
+                        if (currentSubject.theoryMetrics?.hasData == true && 
+                            currentSubject.labMetrics?.hasData == true)
+                          const SizedBox(width: 12),
+                        if (currentSubject.labMetrics?.hasData == true)
+                          Expanded(
+                            child: _buildTypeBreakdownCard(
+                              context,
+                              label: 'Lab',
+                              metrics: currentSubject.labMetrics!,
+                              color: AppColors.terracotta,
+                            ),
+                          ),
+                      ],
+                    ),
+                  ],
 
                   if (!hasData) ...[
                     const SizedBox(height: 12),
@@ -294,6 +338,138 @@ class SubjectDetailScreen extends ConsumerWidget {
                       ),
                     ],
                   ),
+                  
+                  // Semester Forecast (NEW)
+                  if (currentSubject.remainingClasses != null) ...[
+                    const SizedBox(height: 12),
+                    const Divider(color: AppColors.divider, height: 24),
+                    
+                    Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(8),
+                          decoration: BoxDecoration(
+                            color: AppColors.terracotta.withOpacity(0.1),
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: const Icon(Icons.calendar_today_outlined,
+                              color: AppColors.terracotta, size: 20),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Text(
+                                'Remaining Until Semester End',
+                                style: TextStyle(
+                                    fontWeight: FontWeight.w700, fontSize: 13),
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                '${currentSubject.remainingClasses} total classes remaining',
+                                style: AppTypography.bodyMedium.copyWith(fontSize: 12),
+                              ),
+                              if (currentSubject.remainingTheoryClasses != null || 
+                                  currentSubject.remainingLabClasses != null) ...[
+                                const SizedBox(height: 2),
+                                Text(
+                                  '${currentSubject.remainingTheoryClasses ?? 0} Theory • ${currentSubject.remainingLabClasses ?? 0} Lab',
+                                  style: AppTypography.bodySmall.copyWith(
+                                    fontSize: 11,
+                                    color: AppColors.inkMuted,
+                                  ),
+                                ),
+                              ],
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                    
+                    if (currentSubject.projectedFinalPercentage != null) ...[
+                      const SizedBox(height: 12),
+                      Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(8),
+                            decoration: BoxDecoration(
+                              color: AppColors.sage.withOpacity(0.1),
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            child: const Icon(Icons.trending_up_outlined,
+                                color: AppColors.sage, size: 20),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                const Text(
+                                  'Projected Final Attendance',
+                                  style: TextStyle(
+                                      fontWeight: FontWeight.w700, fontSize: 13),
+                                ),
+                                const SizedBox(height: 2),
+                                Text(
+                                  currentSubject.projectedFinalPercentage! >= 75.0
+                                      ? 'On track to finish at ${currentSubject.projectedFinalPercentage!.toStringAsFixed(1)}% (attending all remaining classes)'
+                                      : 'Projected ${currentSubject.projectedFinalPercentage!.toStringAsFixed(1)}% if attending all remaining',
+                                  style: AppTypography.bodyMedium.copyWith(fontSize: 12),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                    
+                    if (currentSubject.maxFutureAbsencesForMin != null) ...[
+                      const SizedBox(height: 12),
+                      Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: currentSubject.maxFutureAbsencesForMin! > 0
+                              ? AppColors.sage.withOpacity(0.05)
+                              : AppColors.coral.withOpacity(0.05),
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(
+                            color: currentSubject.maxFutureAbsencesForMin! > 0
+                                ? AppColors.sage.withOpacity(0.2)
+                                : AppColors.coral.withOpacity(0.2),
+                          ),
+                        ),
+                        child: Row(
+                          children: [
+                            Icon(
+                              currentSubject.maxFutureAbsencesForMin! > 0
+                                  ? Icons.check_circle_outline
+                                  : Icons.warning_amber_rounded,
+                              color: currentSubject.maxFutureAbsencesForMin! > 0
+                                  ? AppColors.sage
+                                  : AppColors.coral,
+                              size: 20,
+                            ),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: Text(
+                                currentSubject.maxFutureAbsencesForMin! > 0
+                                    ? 'You can miss up to ${currentSubject.maxFutureAbsencesForMin} future classes and still reach minimum requirement by semester end'
+                                    : 'Must attend all ${currentSubject.remainingClasses ?? 0} remaining classes to meet minimum requirement',
+                                style: TextStyle(
+                                  fontSize: 11.5,
+                                  fontWeight: FontWeight.w600,
+                                  color: currentSubject.maxFutureAbsencesForMin! > 0
+                                      ? AppColors.ink
+                                      : AppColors.coral,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ],
                 ],
               ),
             ),
@@ -790,6 +966,91 @@ class SubjectDetailScreen extends ConsumerWidget {
             fit: BoxFit.scaleDown,
             child: Text(label, style: AppTypography.bodySmall),
           ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildTypeBreakdownCard(
+    BuildContext context, {
+    required String label,
+    required TypeBreakdownMetrics metrics,
+    required Color color,
+  }) {
+    final pct = metrics.percentage;
+    final isCritical = pct != null && pct < 75.0;
+    
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.05),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: color.withOpacity(0.2)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w700,
+              color: color,
+              letterSpacing: 0.5,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            pct != null ? '${pct.toStringAsFixed(1)}%' : '0.0%',
+            style: TextStyle(
+              fontSize: 24,
+              fontWeight: FontWeight.w800,
+              color: isCritical ? AppColors.coral : color,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            '${metrics.attended}/${metrics.conducted} classes',
+            style: const TextStyle(
+              fontSize: 10,
+              color: AppColors.inkMuted,
+            ),
+          ),
+          if (metrics.classesNeededForMin != null && metrics.classesNeededForMin! > 0) ...[
+            const SizedBox(height: 6),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+              decoration: BoxDecoration(
+                color: AppColors.coral.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(4),
+              ),
+              child: Text(
+                'Need ${metrics.classesNeededForMin} more',
+                style: const TextStyle(
+                  fontSize: 9,
+                  fontWeight: FontWeight.w600,
+                  color: AppColors.coral,
+                ),
+              ),
+            ),
+          ] else if (metrics.maxSafeAbsences > 0) ...[
+            const SizedBox(height: 6),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+              decoration: BoxDecoration(
+                color: AppColors.sage.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(4),
+              ),
+              child: Text(
+                'Can miss ${metrics.maxSafeAbsences}',
+                style: const TextStyle(
+                  fontSize: 9,
+                  fontWeight: FontWeight.w600,
+                  color: AppColors.sage,
+                ),
+              ),
+            ),
+          ],
         ],
       ),
     );

@@ -111,47 +111,21 @@ class LandscapeHeaderWidget extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Row(
-                      children: [
-                        if (showMenuButton && onMenuTap != null) ...[
-                          GestureDetector(
-                            onTap: onMenuTap,
-                            child: Container(
-                              width: 34,
-                              height: 34,
-                              decoration: BoxDecoration(
-                                color: Colors.white.withValues(alpha: 0.9),
-                                shape: BoxShape.circle,
-                                border: Border.all(color: AppColors.divider),
-                              ),
-                              child: const Icon(
-                                Icons.menu_rounded,
-                                size: 19,
-                                color: AppColors.ink,
-                              ),
-                            ),
+                    Text(
+                      greeting,
+                      style: AppTypography.bodyMedium.copyWith(
+                        fontSize: 16,
+                        color: const Color(0xFF4A342B),
+                        fontWeight: FontWeight.w700,
+                        shadows: const [
+                          Shadow(
+                            color: Colors.white70,
+                            blurRadius: 4,
                           ),
-                          const SizedBox(width: 8),
                         ],
-                        Flexible(
-                          child: Text(
-                            greeting,
-                            style: AppTypography.bodyMedium.copyWith(
-                              fontSize: 16,
-                              color: const Color(0xFF4A342B),
-                              fontWeight: FontWeight.w700,
-                              shadows: const [
-                                Shadow(
-                                  color: Colors.white70,
-                                  blurRadius: 4,
-                                ),
-                              ],
-                            ),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
-                      ],
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                     ),
                     if (isLoading) ...[
                       const SizedBox(height: 6),
@@ -163,7 +137,8 @@ class LandscapeHeaderWidget extends StatelessWidget {
                       Text(
                         userName,
                         style: AppTypography.displayLarge.copyWith(
-                          fontSize: 28,
+                          fontSize: 32,
+                          fontWeight: FontWeight.w800,
                           color: const Color(0xFF2C1E18),
                         ),
                         maxLines: 1,

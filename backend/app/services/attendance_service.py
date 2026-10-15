@@ -199,7 +199,8 @@ async def get_today_sessions(
                 is_extra=False,
                 time_status=time_st,
                 attendance_status=None,
-                attendance_id=None
+                attendance_id=None,
+                class_type=tt.class_type or "UNSPECIFIED"
             ))
 
     # Add any extra classes or concrete sessions not matched to timetable entries
@@ -234,7 +235,8 @@ async def get_today_sessions(
                 is_extra=cs.is_extra,
                 time_status=time_st,
                 attendance_status=att_status,
-                attendance_id=att_id
+                attendance_id=att_id,
+                class_type=cs.class_type or "UNSPECIFIED"
             ))
 
     # Sort timed first, then untimed
@@ -344,7 +346,8 @@ async def bulk_save_attendance(
                     faculty_name=tt_obj.faculty_name or subj_obj.faculty_name,
                     room=tt_obj.room,
                     session_status="SCHEDULED",
-                    is_extra=False
+                    is_extra=False,
+                    class_type=tt_obj.class_type  # Snapshot class_type from timetable entry
                 )
                 db.add(new_sess)
                 await db.flush()

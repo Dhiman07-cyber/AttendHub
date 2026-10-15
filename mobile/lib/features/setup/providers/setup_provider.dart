@@ -1,3 +1,4 @@
+import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/network/api_client.dart';
 import '../../../core/network/api_endpoints.dart';
@@ -161,9 +162,25 @@ class SetupNotifier extends StateNotifier<SetupState> {
       }
     } catch (e) {
       if (!mounted) return false;
+      String errMsg = 'Failed to commit academic setup. Please review entries.';
+      if (e is DioException) {
+        final data = e.response?.data;
+        if (data is Map && data['detail'] != null) {
+          final detail = data['detail'];
+          if (detail is String) {
+            errMsg = detail;
+          } else if (detail is List && detail.isNotEmpty) {
+            final firstErr = detail.first;
+            if (firstErr is Map && firstErr['msg'] != null) {
+              final loc = (firstErr['loc'] as List?)?.last ?? 'field';
+              errMsg = 'Invalid $loc: ${firstErr['msg']}';
+            }
+          }
+        }
+      }
       state = state.copyWith(
         isLoading: false,
-        errorMessage: 'Failed to commit academic setup. Please review entries.',
+        errorMessage: errMsg,
       );
     }
     return false;

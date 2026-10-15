@@ -18,8 +18,8 @@ def calculate_subject_metrics(
         percentage = None
         status = "NO_DATA"
         status_label = "No attendance data yet"
-        classes_needed_for_min = 0
-        classes_needed_for_target = 0
+        classes_needed_for_min = None  # Cannot calculate recovery for zero conducted classes
+        classes_needed_for_target = None  # Cannot calculate target path for zero conducted classes
         max_safe_absences = 0
         can_miss_message = "No classes recorded yet"
         recovery_message = "No attendance data yet"
@@ -130,8 +130,8 @@ def calculate_overall_metrics(
             "status_label": "No attendance data yet",
             "minimum_requirement": minimum_requirement,
             "personal_target": personal_target,
-            "classes_needed_for_min": 0,
-            "classes_needed_for_target": 0,
+            "classes_needed_for_min": None,  # Cannot calculate recovery for zero conducted classes
+            "classes_needed_for_target": None,  # Cannot calculate target path for zero conducted classes
             "max_safe_absences": 0,
             "message": "Start marking attendance to track your academic standing."
         }
@@ -195,4 +195,101 @@ def calculate_overall_metrics(
         "classes_needed_for_target": classes_needed_for_target,
         "max_safe_absences": max_safe_absences,
         "message": message
+    }
+
+
+def calculate_subject_with_type_breakdown(
+    attended: int,
+    absent: int,
+    theory_attended: int,
+    theory_absent: int,
+    lab_attended: int,
+    lab_absent: int,
+    minimum_requirement: float = 75.0,
+    personal_target: float = 75.0
+) -> Dict[str, Any]:
+    """
+    Calculate attendance metrics for a subject with Theory/Lab breakdown.
+    
+    Returns overall metrics plus separate Theory and Lab metrics.
+    Unclassified sessions are included only in overall metrics.
+    
+    Args:
+        attended: total attended (Theory + Lab + Unclassified)
+        absent: total absent (Theory + Lab + Unclassified)
+        theory_attended: attended Theory sessions only
+        theory_absent: absent Theory sessions only
+        lab_attended: attended Lab sessions only
+        lab_absent: absent Lab sessions only
+        minimum_requirement: institution minimum %
+        personal_target: user's personal target %
+    
+    Returns:
+        Dict with overall metrics, theory_metrics, lab_metrics, and unclassified_metrics
+    """
+    # Overall metrics (all sessions)
+    overall = calculate_subject_metrics(attended, absent, minimum_requirement, personal_target)
+    
+    # Theory metrics
+    theory_conducted = theory_attended + theory_absent
+    if theory_conducted > 0:
+        theory_pct = round((theory_attended / theory_conducted) * 100.0, 1)
+        theory_metrics = calculate_subject_metrics(
+            theory_attended, theory_absent, minimum_requirement, personal_target
+        )
+    else:
+        theory_metrics = {
+            "attended": 0,
+            "absent": 0,
+            "conducted": 0,
+            "percentage": None,
+            "has_data": False,
+            "status": "NO_DATA",
+            "status_label": "No Theory classes yet",
+            "minimum_requirement": minimum_requirement,
+            "personal_target": personal_target,
+            "classes_needed_for_min": None,
+            "classes_needed_for_target": None,
+            "max_safe_absences": 0,
+            "can_miss_message": "No Theory classes recorded",
+            "recovery_message": "No Theory attendance data yet"
+        }
+    
+    # Lab metrics
+    lab_conducted = lab_attended + lab_absent
+    if lab_conducted > 0:
+        lab_pct = round((lab_attended / lab_conducted) * 100.0, 1)
+        lab_metrics = calculate_subject_metrics(
+            lab_attended, lab_absent, minimum_requirement, personal_target
+        )
+    else:
+        lab_metrics = {
+            "attended": 0,
+            "absent": 0,
+            "conducted": 0,
+            "percentage": None,
+            "has_data": False,
+            "status": "NO_DATA",
+            "status_label": "No Lab classes yet",
+            "minimum_requirement": minimum_requirement,
+            "personal_target": personal_target,
+            "classes_needed_for_min": None,
+            "classes_needed_for_target": None,
+            "max_safe_absences": 0,
+            "can_miss_message": "No Lab classes recorded",
+            "recovery_message": "No Lab attendance data yet"
+        }
+    
+    # Unclassified (overall - theory - lab)
+    unclassified_attended = attended - theory_attended - lab_attended
+    unclassified_absent = absent - theory_absent - lab_absent
+    unclassified_conducted = unclassified_attended + unclassified_absent
+    
+    return {
+        **overall,
+        "theory_metrics": theory_metrics,
+        "lab_metrics": lab_metrics,
+        "unclassified_attended": unclassified_attended,
+        "unclassified_absent": unclassified_absent,
+        "unclassified_conducted": unclassified_conducted
     }

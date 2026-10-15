@@ -231,7 +231,7 @@ async def list_weekly_status(
                     end_time=e.end_time,
                     room=e.room,
                     faculty_name=e.faculty_name or s.faculty_name,
-                    class_type="Theory",
+                    class_type=sess_obj.class_type if sess_obj else (e.class_type or "UNSPECIFIED"),
                     session_id=sess_obj.id if sess_obj else None,
                     attendance_status=att_status,
                     is_attended=is_attended,

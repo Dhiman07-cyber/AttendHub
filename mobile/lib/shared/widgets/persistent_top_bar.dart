@@ -43,19 +43,21 @@ class PersistentTopBar extends StatelessWidget {
       ),
       child: Row(
             children: [
-              // Left action: Hamburger or Back
-              IconButton(
-                icon: Icon(
-                  isSecondary ? Icons.arrow_back_ios_new_rounded : Icons.menu_rounded,
-                  color: AppColors.ink,
-                  size: isSecondary ? 20 : 22,
+              // Left action: Back only when in secondary view (hamburger completely removed)
+              if (isSecondary) ...[
+                IconButton(
+                  icon: const Icon(
+                    Icons.arrow_back_ios_new_rounded,
+                    color: AppColors.ink,
+                    size: 20,
+                  ),
+                  padding: EdgeInsets.zero,
+                  constraints: const BoxConstraints(minWidth: 44, minHeight: 44),
+                  onPressed: onMenuOrBack,
+                  tooltip: 'Back',
                 ),
-                padding: EdgeInsets.zero,
-                constraints: const BoxConstraints(minWidth: 44, minHeight: 44),
-                onPressed: onMenuOrBack,
-                tooltip: isSecondary ? 'Back' : 'Open Menu',
-              ),
-              const SizedBox(width: 8),
+                const SizedBox(width: 8),
+              ],
 
               // Center: Title & optional subtitle
               Expanded(

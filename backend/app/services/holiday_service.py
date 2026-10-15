@@ -100,7 +100,7 @@ async def create_holiday(db: AsyncSession, user_id: str, data: HolidayCreate) ->
     return _map_holiday_out(hol, today)
 
 async def update_holiday(db: AsyncSession, user_id: str, holiday_id: str, data: HolidayUpdate) -> HolidayOut:
-    today = date(2026, 10, 8)
+    today = date.today()
     stmt = select(Holiday).where(Holiday.id == holiday_id, Holiday.user_id == user_id)
     res = await db.execute(stmt)
     hol = res.scalar_one_or_none()

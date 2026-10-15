@@ -41,7 +41,7 @@ class SetupStatusOut(BaseModel):
     subject_count: int = 0
 
 from datetime import date
-from typing import List
+from typing import List, Any
 
 class SetupSubjectDraft(BaseModel):
     name: str = Field(..., min_length=1, max_length=150)
@@ -49,13 +49,36 @@ class SetupSubjectDraft(BaseModel):
     faculty_name: Optional[str] = Field(None, max_length=100)
     color: Optional[str] = "#C96E5B"
 
+    @field_validator("name", mode="before")
+    @classmethod
+    def sanitize_name(cls, v: Any) -> str:
+        s = str(v).strip()
+        return s if s else "Subject"
+
+    @field_validator("code", "faculty_name", mode="before")
+    @classmethod
+    def sanitize_optional_str(cls, v: Optional[str]) -> Optional[str]:
+        if v is None:
+            return None
+        v_str = str(v).strip()
+        return v_str if v_str else None
+
 class SetupTimetableDraft(BaseModel):
     subject_name: str
-    day_of_week: int = Field(..., ge=0, le=6)
+    day_of_week: int = Field(0, ge=0, le=6)
     start_time: Optional[str] = None
     end_time: Optional[str] = None
     room: Optional[str] = None
     faculty_name: Optional[str] = None
+
+    @field_validator("day_of_week", mode="before")
+    @classmethod
+    def normalize_day_of_week(cls, v: Any) -> int:
+        try:
+            val = int(v)
+            return max(0, min(6, val))
+        except (ValueError, TypeError):
+            return 0
 
 class SetupHolidayDraft(BaseModel):
     title: str = Field(..., min_length=1, max_length=150)
@@ -64,7 +87,14 @@ class SetupHolidayDraft(BaseModel):
     category: str = "University Holiday"
     notes: Optional[str] = None
 
+    @field_validator("title", mode="before")
+    @classmethod
+    def sanitize_title(cls, v: Any) -> str:
+        s = str(v).strip()
+        return s if s else "Holiday"
+
     @field_validator("category", mode="before")
+    @classmethod
     def normalize_category(cls, v: Optional[str]) -> str:
         if not v:
             return "University Holiday"
@@ -89,8 +119,8 @@ class SetupStartingAttendanceDraft(BaseModel):
 
 class FullAcademicSetupRequest(BaseModel):
     # Step 1: Global Profile
-    university_name: str = Field(..., min_length=1, max_length=200)
-    course_name: str = Field(..., min_length=1, max_length=200)
+    university_name: Optional[str] = Field("Not specified", max_length=200)
+    course_name: Optional[str] = Field("Not specified", max_length=200)
     full_name: Optional[str] = None
     student_id_number: Optional[str] = None
     academic_duration_years: int = Field(4, ge=1, le=10)
@@ -100,7 +130,7 @@ class FullAcademicSetupRequest(BaseModel):
     # Step 2: Semester
     semester_id: Optional[str] = None
     semester_number: int = Field(1, ge=1, le=12)
-    semester_label: str = Field("1st Semester", min_length=1, max_length=100)
+    semester_label: Optional[str] = Field("1st Semester", max_length=100)
     start_date: date
     end_date: date
     minimum_attendance: float = Field(75.0, ge=0.0, le=100.0)
@@ -118,6 +148,27 @@ class FullAcademicSetupRequest(BaseModel):
     
     # Step 6: Starting Attendance
     starting_attendance: List[SetupStartingAttendanceDraft] = []
+
+    @field_validator("university_name", mode="before")
+    @classmethod
+    def normalize_university(cls, v: Optional[str]) -> str:
+        if not v or not str(v).strip():
+            return "Not specified"
+        return str(v).strip()
+
+    @field_validator("course_name", mode="before")
+    @classmethod
+    def normalize_course(cls, v: Optional[str]) -> str:
+        if not v or not str(v).strip():
+            return "Not specified"
+        return str(v).strip()
+
+    @field_validator("semester_label", mode="before")
+    @classmethod
+    def normalize_semester_label(cls, v: Optional[str]) -> str:
+        if not v or not str(v).strip():
+            return "1st Semester"
+        return str(v).strip()
 
 class SetupSemesterInfo(BaseModel):
     semester_id: Optional[str] = None
