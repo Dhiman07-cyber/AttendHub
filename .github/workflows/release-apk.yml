@@ -154,6 +154,7 @@ jobs:
             printf 'flutter.sdk=%s\n' "$FLUTTER_SDK" > android/local.properties
             gradle -p android wrapper --gradle-version 8.12
           fi
+          chmod +x android/gradlew
 
       - name: Install Flutter dependencies
         working-directory: mobile
