@@ -12,6 +12,15 @@ import 'package:attendhub/features/setup/academic_setup_screen.dart';
 import 'package:attendhub/features/imports/routine_import_dialog.dart';
 import 'package:attendhub/features/imports/holiday_import_dialog.dart';
 
+// Helper to find a clickable Material button by its visible label text or key.
+Finder buttonByLabel(String label) {
+  final byKey = find.byKey(const Key('clear_selection_button'));
+  if (byKey.evaluate().isNotEmpty) return byKey;
+  final textFinder = find.text(label);
+  final buttonFinder = find.ancestor(of: textFinder, matching: find.byType(ButtonStyleButton));
+  return buttonFinder.evaluate().isNotEmpty ? buttonFinder : textFinder;
+}
+
 void main() {
   group('AttendHub Persistent Shell Tests', () {
     testWidgets('PersistentTopBar renders fixed controls with title, subtitle, bell, and avatar', (tester) async {
@@ -482,9 +491,9 @@ void main() {
       expect(find.text('Edit Mode'), findsNothing);
 
       // 2. Clear Selection Button starts disabled
-      final clearSelectionBtnFinder = find.widgetWithText(TextButton, 'Clear Selection');
+      final clearSelectionBtnFinder = buttonByLabel('Clear Selection');
       expect(clearSelectionBtnFinder, findsOneWidget);
-      final initialClearBtn = tester.widget<TextButton>(clearSelectionBtnFinder);
+      final initialClearBtn = tester.widget<ButtonStyleButton>(clearSelectionBtnFinder);
       expect(initialClearBtn.onPressed, isNull);
 
       // 3. Select Break Time
@@ -492,7 +501,7 @@ void main() {
       await tester.pumpAndSettle();
 
       // Clear Selection button is now active
-      final activeClearBtn = tester.widget<TextButton>(clearSelectionBtnFinder);
+      final activeClearBtn = tester.widget<ButtonStyleButton>(clearSelectionBtnFinder);
       expect(activeClearBtn.onPressed, isNotNull);
 
       // 4. Tap an empty slot while Break Time is active -> direct fill without modal
@@ -521,7 +530,7 @@ void main() {
       await tester.pumpAndSettle();
 
       // Tool is cleared and button is disabled again
-      final clearedBtn = tester.widget<TextButton>(clearSelectionBtnFinder);
+      final clearedBtn = tester.widget<ButtonStyleButton>(clearSelectionBtnFinder);
       expect(clearedBtn.onPressed, isNull);
 
       // 8. Tapping an empty slot without tool opens the modal editor
@@ -630,7 +639,7 @@ void main() {
       expect(find.text('Theory Sub A'), findsWidgets);
 
       // Clear Quick-Assign so we can open slot modal on Box 1 (9 AM)
-      await tester.tap(find.widgetWithText(TextButton, 'Clear Selection'));
+      await tester.tap(buttonByLabel('Clear Selection'));
       await tester.pumpAndSettle();
 
       // 2. Tap Box 1 (9 AM) to open modal editor

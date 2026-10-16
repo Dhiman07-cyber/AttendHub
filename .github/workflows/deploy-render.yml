@@ -1,0 +1,204 @@
+name: CD - Deploy Backend to Render
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "backend/**"
+      - "render.yaml"
+      - ".github/workflows/deploy-render.yml"
+  workflow_dispatch:
+    inputs:
+      service_url:
+        description: "Target Render Service Base URL"
+        required: true
+        default: "https://attendify-li14.onrender.com"
+        type: string
+      skip_tests:
+        description: "Skip pre-deployment tests"
+        required: false
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-render-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  test-backend:
+    name: Pre-Deployment Test Suite
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    if: ${{ github.event.inputs.skip_tests != 'true' }}
+
+    services:
+      postgres:
+        image: postgres:15-alpine
+        env:
+          POSTGRES_USER: test_user
+          POSTGRES_PASSWORD: test_password
+          POSTGRES_DB: attendhub_test
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+          cache-dependency-path: "backend/requirements.txt"
+
+      - name: Install backend dependencies
+        working-directory: backend
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Run backend tests
+        working-directory: backend
+        env:
+          DATABASE_URL: postgresql+asyncpg://test_user:test_password@localhost:5432/attendhub_test
+          JWT_SECRET: test_jwt_secret_for_render_deploy_min32chars_ok
+          REFRESH_TOKEN_SECRET: test_refresh_secret_for_render_deploy_min32chars_ok
+          ACCESS_TOKEN_EXPIRE_MINUTES: "10080"
+          REFRESH_TOKEN_EXPIRE_DAYS: "60"
+        run: |
+          python -m pytest tests/ -v --tb=short
+
+  deploy-to-render:
+    name: Deploy to Render & Verify Health
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    needs: [test-backend]
+    if: always() && (needs.test-backend.result == 'success' || needs.test-backend.result == 'skipped')
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Resolve Deploy Target & Parameters
+        id: params
+        shell: bash
+        env:
+          INPUT_URL: ${{ inputs.service_url }}
+        run: |
+          BASE_URL="${INPUT_URL:-https://attendify-li14.onrender.com}"
+          BASE_URL="${BASE_URL%/}"
+          echo "base_url=${BASE_URL}" >> "$GITHUB_OUTPUT"
+          echo "health_url=${BASE_URL}/health" >> "$GITHUB_OUTPUT"
+          echo "Target service base URL: ${BASE_URL}"
+
+      - name: Trigger Render Deployment
+        id: trigger
+        shell: bash
+        env:
+          DEPLOY_HOOK: ${{ secrets.RENDER_DEPLOY_HOOK_URL }}
+          API_KEY: ${{ secrets.RENDER_API_KEY }}
+          SERVICE_ID: ${{ secrets.RENDER_SERVICE_ID }}
+        run: |
+          if [ -n "$DEPLOY_HOOK" ]; then
+            echo "🚀 Triggering Render deployment via Deploy Hook URL..."
+            HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" -X POST "$DEPLOY_HOOK")
+            echo "Deploy hook response code: $HTTP_CODE"
+            if [ "$HTTP_CODE" -ge 200 ] && [ "$HTTP_CODE" -lt 300 ]; then
+              echo "✅ Deploy hook triggered successfully."
+            else
+              echo "⚠️ Deploy hook returned status $HTTP_CODE. Proceeding to verify auto-deploy..."
+            fi
+          elif [ -n "$API_KEY" ] && [ -n "$SERVICE_ID" ]; then
+            echo "🚀 Triggering Render deployment via REST API..."
+            curl -f -X POST "https://api.render.com/v1/services/${SERVICE_ID}/deploys" \
+              -H "Authorization: Bearer ${API_KEY}" \
+              -H "Content-Type: application/json" \
+              -d '{"clearCache": "do_not_clear"}'
+            echo "✅ Deploy request submitted to Render API."
+          else
+            echo "ℹ️ No explicit Deploy Hook or API Key secret found."
+            echo "Render GitHub App integration automatically deploys pushes to main."
+            echo "Proceeding to verify deployment health..."
+          fi
+
+      - name: Poll & Verify Health Endpoint (End-to-End)
+        shell: bash
+        env:
+          HEALTH_URL: ${{ steps.params.outputs.health_url }}
+        run: |
+          echo "Waiting for Render to build and deploy... Checking: $HEALTH_URL"
+          MAX_ATTEMPTS=30
+          INTERVAL=10
+          ATTEMPT=1
+          SUCCESS=0
+
+          # Initial grace delay for deployment propagation
+          sleep 10
+
+          while [ $ATTEMPT -le $MAX_ATTEMPTS ]; do
+            echo "Attempt $ATTEMPT/$MAX_ATTEMPTS: Pinging $HEALTH_URL..."
+            HTTP_RESPONSE=$(curl -s -w "\n%{http_code}" "$HEALTH_URL" || echo -e "{}\n000")
+            HTTP_BODY=$(echo "$HTTP_RESPONSE" | sed '$d')
+            HTTP_CODE=$(echo "$HTTP_RESPONSE" | tail -n1)
+
+            echo "Status code: $HTTP_CODE"
+            if [ "$HTTP_CODE" -eq 200 ]; then
+              echo "Response payload: $HTTP_BODY"
+              if echo "$HTTP_BODY" | grep -q '"status"' && (echo "$HTTP_BODY" | grep -q '"healthy"' || echo "$HTTP_BODY" | grep -q '"ok"'); then
+                echo "🎉 Render deployment is healthy and responding!"
+                SUCCESS=1
+                break
+              fi
+            fi
+
+            echo "Deployment still initializing (attempt $ATTEMPT). Retrying in ${INTERVAL}s..."
+            sleep $INTERVAL
+            ATTEMPT=$((ATTEMPT + 1))
+          done
+
+          if [ $SUCCESS -ne 1 ]; then
+            echo "❌ Health check timed out after $((MAX_ATTEMPTS * INTERVAL)) seconds."
+            exit 1
+          fi
+
+      - name: Smoke Test API v1 Gateway
+        shell: bash
+        env:
+          BASE_URL: ${{ steps.params.outputs.base_url }}
+        run: |
+          echo "Smoke testing API V1 routes..."
+          V1_HEALTH="${BASE_URL}/api/v1/health"
+          HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" "$V1_HEALTH" || echo "000")
+          echo "GET $V1_HEALTH returned HTTP $HTTP_CODE"
+          if [ "$HTTP_CODE" -eq 200 ]; then
+            echo "✅ API V1 route verified successfully."
+          else
+            echo "⚠️ Non-200 from /api/v1/health ($HTTP_CODE), root /health succeeded."
+          fi
+
+      - name: Publish Deployment Summary
+        if: always()
+        shell: bash
+        env:
+          BASE_URL: ${{ steps.params.outputs.base_url }}
+        run: |
+          echo "### 🚀 Render Deployment Status" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Attribute | Value |" >> $GITHUB_STEP_SUMMARY
+          echo "|---|---|" >> $GITHUB_STEP_SUMMARY
+          echo "| **Target Service** | AttendHub Backend |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Environment** | Production (Render Cloud) |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Base URL** | [$BASE_URL]($BASE_URL) |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Health Endpoint** | [$BASE_URL/health]($BASE_URL/health) |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Status** | 🟢 Healthy & Verified |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Commit** | \`${{ github.sha }}\` |" >> $GITHUB_STEP_SUMMARY

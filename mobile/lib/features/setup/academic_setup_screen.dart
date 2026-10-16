@@ -3176,6 +3176,7 @@ class _AcademicSetupScreenState extends ConsumerState<AcademicSetupScreen> with 
                     const SizedBox(width: 8),
                     // Clear Selection Button (disabled when null, active when selected)
                     TextButton.icon(
+                      key: const Key('clear_selection_button'),
                       onPressed: _quickAssignTool != null
                           ? () {
                               HapticFeedback.lightImpact();
