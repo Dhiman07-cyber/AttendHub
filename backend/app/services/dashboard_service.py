@@ -23,6 +23,24 @@ async def get_dashboard_overview(db: AsyncSession, user_id: str) -> DashboardOve
     active_sem = await get_active_semester(db, user_id)
     sem_stats = _compute_semester_stats(active_sem)
 
+    if not prof:
+        prof = AcademicProfile(
+            user_id=user_id,
+            university_name="",
+            course_name="",
+            student_id_number=None,
+            academic_duration_years=4,
+            academic_session_start=2024,
+            academic_session_end=2028,
+            current_semester_id=active_sem.id,
+            minimum_attendance=75.0,
+            personal_target=75.0,
+            low_attendance_alert=70.0
+        )
+        db.add(prof)
+        await db.commit()
+        await db.refresh(prof)
+
     # 2. Analytics overview (reuse already-fetched active_sem and prof)
     analytics = await get_analytics_overview(
         db,

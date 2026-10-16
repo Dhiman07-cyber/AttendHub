@@ -1,10 +1,13 @@
 name: Build & Release Android APK
 
 on:
-  # 1. Trigger automatically on every push to main or version tags
+  # 1. Trigger automatically on mobile changes to main or version tags
   push:
     branches:
       - main
+    paths:
+      - "mobile/**"
+      - ".github/workflows/release-apk.yml"
     tags:
       - "v*"
 

@@ -53,6 +53,7 @@ class CalendarState {
   final List<ClassSessionModel> selectedDateSessions;
   final List<HolidayModel> selectedDateHolidays;
   final bool isLoading;
+  final bool hasLoaded;
   final String? errorMessage;
   final CalendarViewMode viewMode;
 
@@ -65,6 +66,7 @@ class CalendarState {
     required this.selectedDateSessions,
     required this.selectedDateHolidays,
     this.isLoading = false,
+    this.hasLoaded = true,
     this.errorMessage,
     this.viewMode = CalendarViewMode.month,
   });
@@ -78,6 +80,7 @@ class CalendarState {
     List<ClassSessionModel>? selectedDateSessions,
     List<HolidayModel>? selectedDateHolidays,
     bool? isLoading,
+    bool? hasLoaded,
     String? errorMessage,
     CalendarViewMode? viewMode,
   }) {
@@ -90,6 +93,7 @@ class CalendarState {
       selectedDateSessions: selectedDateSessions ?? this.selectedDateSessions,
       selectedDateHolidays: selectedDateHolidays ?? this.selectedDateHolidays,
       isLoading: isLoading ?? this.isLoading,
+      hasLoaded: hasLoaded ?? this.hasLoaded,
       errorMessage: errorMessage,
       viewMode: viewMode ?? this.viewMode,
     );
@@ -113,6 +117,8 @@ class CalendarNotifier extends StateNotifier<CalendarState> {
           days: [],
           selectedDateSessions: [],
           selectedDateHolidays: [],
+          isLoading: true,
+          hasLoaded: false,
         )) {
     loadCalendar();
   }
@@ -153,12 +159,14 @@ class CalendarNotifier extends StateNotifier<CalendarState> {
           selectedDateSessions: sList,
           selectedDateHolidays: hList,
           isLoading: false,
+          hasLoaded: true,
         );
       }
     } catch (e) {
       if (!mounted) return;
       state = state.copyWith(
         isLoading: false,
+        hasLoaded: true,
         errorMessage: 'Unable to load calendar data.',
       );
     }

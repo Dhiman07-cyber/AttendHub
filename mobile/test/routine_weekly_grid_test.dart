@@ -141,7 +141,7 @@ void main() {
 
       // Interactive update prompt and options
       expect(find.textContaining('Update Attendance'), findsOneWidget);
-      expect(find.text('Edit Routine in Setup Wizard'), findsOneWidget);
+      expect(find.text('Edit Routine in Academic Setup'), findsOneWidget);
       expect(find.text('Attended'), findsWidgets);
       expect(find.text('Absent'), findsWidgets);
       expect(find.text('Not Held'), findsWidgets);

@@ -390,6 +390,26 @@ class LocalStorage {
   }
 
   static const String _keyCustomApiBaseUrl = 'attendhub_custom_api_base_url';
+  static const String _keyTimeFormat = 'attendhub_time_format';
+  static String? _memTimeFormat;
+
+  Future<void> setTimeFormat(String format) async {
+    _memTimeFormat = format;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_keyTimeFormat, format);
+  }
+
+  Future<String> getTimeFormat() async {
+    if (_memTimeFormat != null) return _memTimeFormat!;
+    final prefs = await SharedPreferences.getInstance();
+    final val = prefs.getString(_keyTimeFormat);
+    _memTimeFormat = (val == '24h') ? '24h' : '12h';
+    return _memTimeFormat!;
+  }
+
+  String getTimeFormatSync() {
+    return _memTimeFormat ?? '12h';
+  }
 
   Future<void> saveCustomApiBaseUrl(String? url) async {
     final prefs = await SharedPreferences.getInstance();

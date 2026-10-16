@@ -36,12 +36,13 @@ async def _fetch_subject_attendance_counts(
     """
     Single grouped query replacing N+1 per-subject count queries.
     Returns overall + Theory + Lab breakdown counts.
+    Groups by raw columns (subject_id, class_type) to ensure strict PostgreSQL
+    compatibility without parameter expression mismatch in GROUP BY.
     """
-    # Normalize NULL class_type to "UNSPECIFIED"
     stmt = (
         select(
             ClassSession.subject_id,
-            func.coalesce(ClassSession.class_type, "UNSPECIFIED").label("class_type"),
+            ClassSession.class_type,
             func.count(case((AttendanceRecord.status == "ATTENDED", 1))).label("attended"),
             func.count(case((AttendanceRecord.status == "ABSENT", 1))).label("absent")
         )
@@ -50,7 +51,7 @@ async def _fetch_subject_attendance_counts(
             AttendanceRecord.user_id == user_id,
             ClassSession.semester_id == semester_id
         )
-        .group_by(ClassSession.subject_id, func.coalesce(ClassSession.class_type, "UNSPECIFIED"))
+        .group_by(ClassSession.subject_id, ClassSession.class_type)
     )
     result = await db.execute(stmt)
     
@@ -179,10 +180,9 @@ async def get_analytics_overview(
     forecast_from = today
     semester_start = sem.start_date
     semester_end = sem.end_date
-    working_days_mask = set(sem.working_days)  # Property returns List[int]
     
     forecast_status = calculate_forecast_status(
-        semester_start, semester_end, tt_dicts, working_days_configured=bool(sem._working_days_raw)
+        semester_start, semester_end, tt_dicts
     )
 
     subjects_out: List[SubjectAnalyticsOut] = []
@@ -215,15 +215,15 @@ async def get_analytics_overview(
         if forecast_status == "COMPLETE":
             remaining = calculate_future_classes_count(
                 tt_dicts, semester_start, semester_end, holiday_ranges,
-                forecast_from, subject_id=s.id, working_days_mask=working_days_mask
+                forecast_from, subject_id=s.id
             )
             remaining_theory = calculate_future_classes_count(
                 tt_dicts, semester_start, semester_end, holiday_ranges,
-                forecast_from, subject_id=s.id, class_type_filter="THEORY", working_days_mask=working_days_mask
+                forecast_from, subject_id=s.id, class_type_filter="THEORY"
             )
             remaining_lab = calculate_future_classes_count(
                 tt_dicts, semester_start, semester_end, holiday_ranges,
-                forecast_from, subject_id=s.id, class_type_filter="LAB", working_days_mask=working_days_mask
+                forecast_from, subject_id=s.id, class_type_filter="LAB"
             )
             projected_final = calculate_projected_final_attendance(att, att + ab, remaining)
             max_abs_min = calculate_max_future_absences_by_semester_end(att, att + ab, remaining, min_req)
@@ -349,7 +349,7 @@ async def get_analytics_overview(
     if forecast_status == "COMPLETE":
         total_remaining = calculate_future_classes_count(
             tt_dicts, semester_start, semester_end, holiday_ranges,
-            forecast_from, working_days_mask=working_days_mask
+            forecast_from
         )
         projected_overall_final = calculate_projected_final_attendance(
             overall["total_attended"], overall["total_conducted"], total_remaining

@@ -82,7 +82,7 @@ class _LiquidGlassBottomNavState extends State<LiquidGlassBottomNav> {
           Expanded(child: _buildNavItem(1, Icons.schedule_rounded, 'Routine', effectiveIndex)),
           Expanded(child: _buildNavItem(2, Icons.pie_chart_outline_rounded, 'Analytics', effectiveIndex)),
           Expanded(child: _buildNavItem(3, Icons.menu_book_rounded, 'Subjects', effectiveIndex)),
-          Expanded(child: _buildNavItem(4, Icons.beach_access_rounded, 'Holidays', effectiveIndex)),
+          Expanded(child: _buildNavItem(4, Icons.event_available_rounded, 'Holidays', effectiveIndex)),
         ],
       );
     }

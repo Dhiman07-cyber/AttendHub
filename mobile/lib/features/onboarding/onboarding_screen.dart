@@ -323,7 +323,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
 
   // -------------------------------------------------------------
   // SLIDE 1: Track Every Class, Stay Ahead of 75% Always
-  // 3-Line Headline & Well-Proportioned 2x2 Grid (No center void, No clipping)
+  // Cards placed lower with all inner text and card contents horizontally centered
   // -------------------------------------------------------------
   Widget _buildPageOne() {
     return LayoutBuilder(
@@ -331,7 +331,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
         final availableHeight = constraints.maxHeight;
         final isShort = availableHeight < 620;
         final isUltraShort = availableHeight < 520;
-        final cardAspectRatio = isUltraShort ? 1.35 : (isShort ? 1.20 : 1.14);
+        final cardAspectRatio = isUltraShort ? 1.35 : (isShort ? 1.22 : 1.16);
 
         return SingleChildScrollView(
           physics: const BouncingScrollPhysics(),
@@ -379,9 +379,10 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                 ),
               ),
 
-              SizedBox(height: isShort ? 16 : 22),
+              // Cards placed visibly lower as requested
+              SizedBox(height: isUltraShort ? 24 : (isShort ? 38 : 54)),
 
-              // 2x2 Feature Grid - Taller cards, comfortably proportioned with zero clipping
+              // 2x2 Feature Grid - Horizontally centered inner contents with zero clipping
               GridView.count(
                 crossAxisCount: 2,
                 shrinkWrap: true,
@@ -443,8 +444,8 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
   }) {
     return Container(
       padding: EdgeInsets.symmetric(
-        horizontal: isCompact ? 10 : 12,
-        vertical: isCompact ? 10 : 12,
+        horizontal: isCompact ? 10 : 14,
+        vertical: isCompact ? 10 : 14,
       ),
       decoration: BoxDecoration(
         color: Colors.white.withValues(alpha: 0.94),
@@ -462,21 +463,22 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
         ],
       ),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.center,
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
           Container(
-            width: isCompact ? 32 : 36,
-            height: isCompact ? 32 : 36,
+            width: isCompact ? 34 : 38,
+            height: isCompact ? 34 : 38,
             decoration: BoxDecoration(
               color: iconBg,
               borderRadius: BorderRadius.circular(10),
             ),
-            child: Icon(icon, size: isCompact ? 17 : 19, color: iconColor),
+            child: Icon(icon, size: isCompact ? 18 : 20, color: iconColor),
           ),
           SizedBox(height: isCompact ? 6 : 8),
           Text(
             title,
+            textAlign: TextAlign.center,
             style: TextStyle(
               fontWeight: FontWeight.w700,
               fontSize: isCompact ? 12 : 13.5,
@@ -489,6 +491,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
           const SizedBox(height: 3),
           Text(
             subtitle,
+            textAlign: TextAlign.center,
             style: TextStyle(
               fontSize: isCompact ? 10 : 11,
               color: AppColors.inkMuted,
@@ -504,14 +507,17 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
 
   // -------------------------------------------------------------
   // SLIDE 2: Smart Analytics for Safe Decisions
-  // Lightweight Frosted Glass Cards (Campus background clearly visible)
-  // 5 Universal Subjects with clean calculator icon
+  // -------------------------------------------------------------
+  // SLIDE 2: Smart Analytics for Safe Decisions
+  // Mathematics & Computer Applications Side-by-Side and Vertically Centered
+  // Clean, uncluttered, focused promotional cards with background visible
   // -------------------------------------------------------------
   Widget _buildPageTwo() {
     return LayoutBuilder(
       builder: (context, constraints) {
         final availableHeight = constraints.maxHeight;
         final isShort = availableHeight < 620;
+        final isUltraShort = availableHeight < 520;
 
         return SingleChildScrollView(
           physics: const BouncingScrollPhysics(),
@@ -525,8 +531,8 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
               Text.rich(
                 TextSpan(
                   style: AppTypography.displayLarge.copyWith(
-                    fontSize: isShort ? 26 : 30,
-                    height: 1.15,
+                    fontSize: isUltraShort ? 24 : (isShort ? 26 : 30),
+                    height: 1.18,
                     fontWeight: FontWeight.w800,
                     fontFamily: 'serif',
                     color: AppColors.ink,
@@ -543,133 +549,86 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                   ],
                 ),
               ),
-              SizedBox(height: isShort ? 6 : 8),
+              SizedBox(height: isShort ? 6 : 10),
 
               Text(
-                'Get subject-wise attendance, know how many classes you can still miss, and stay on track automatically.',
+                'Predict your attendance beforehand. Know exactly how many classes you need to attend or can safely miss.',
                 style: AppTypography.bodyLarge.copyWith(
                   fontSize: isShort ? 12.5 : 13.5,
-                  height: 1.3,
+                  height: 1.35,
                   color: AppColors.inkSecondary,
+                  fontWeight: FontWeight.w500,
                 ),
               ),
-              SizedBox(height: isShort ? 12 : 16),
+              SizedBox(height: isUltraShort ? 24 : (isShort ? 38 : 54)),
 
-              // 5 Lightweight Frosted Glass Subject Cards - letting campus backdrop show through
-              Column(
+              // Side-by-Side Cards: Mathematics & Computer Applications
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Card 1: Mathematics (Clean calculator icon, Class 10 / college)
-                  _buildLightweightSubjectCard(
-                    iconBadge: const Icon(
-                      Icons.calculate_rounded,
-                      color: Color(0xFFDE6854),
-                      size: 18,
+                  // Card 1: Mathematics (Target Recovery)
+                  Expanded(
+                    child: _buildSideBySideForecastCard(
+                      subject: 'Mathematics',
+                      percentage: '68.2%',
+                      progress: 0.682,
+                      themeColor: const Color(0xFFDE6854),
+                      icon: Icons.calculate_rounded,
+                      iconBg: const Color(0xFFFDEEEB),
+                      badgeIcon: Icons.track_changes_rounded,
+                      badgeHeadline: 'Need 2 classes',
+                      badgeDetail: 'for 75% target',
+                      isWarning: true,
+                      isShort: isShort,
                     ),
-                    iconBg: const Color(0xFFFDEEEB),
-                    title: 'Mathematics',
-                    percentage: '68.2%',
-                    barValue: 0.682,
-                    barColor: const Color(0xFFDE6854),
-                    chipBg: const Color(0xFFFDEEEB),
-                    chipBorder: const Color(0xFFF7D1CA),
-                    chipIcon: Icons.warning_amber_rounded,
-                    chipIconColor: const Color(0xFFDE6854),
-                    chipText: 'Below target • Need 2 more classes for 75%',
-                    chipTextColor: const Color(0xFFC7513E),
-                    isCompact: isShort,
                   ),
-                  SizedBox(height: isShort ? 7 : 9),
+                  const SizedBox(width: 10),
 
-                  // Card 2: Computer Applications
-                  _buildLightweightSubjectCard(
-                    iconBadge: const Icon(
-                      Icons.code_rounded,
-                      color: AppColors.sageDark,
-                      size: 18,
+                  // Card 2: Computer Applications (Safe Absences)
+                  Expanded(
+                    child: _buildSideBySideForecastCard(
+                      subject: 'Computer Apps',
+                      percentage: '84.0%',
+                      progress: 0.840,
+                      themeColor: AppColors.sageDark,
+                      icon: Icons.code_rounded,
+                      iconBg: const Color(0xFFEDF6F1),
+                      badgeIcon: Icons.shield_outlined,
+                      badgeHeadline: '3 safe absences',
+                      badgeDetail: 'above 75% margin',
+                      isWarning: false,
+                      isShort: isShort,
                     ),
-                    iconBg: const Color(0xFFEDF6F1),
-                    title: 'Computer Applications',
-                    percentage: '82.5%',
-                    barValue: 0.825,
-                    barColor: AppColors.sage,
-                    chipBg: const Color(0xFFEDF6F1),
-                    chipBorder: const Color(0xFFCFE8D9),
-                    chipIcon: Icons.check_circle_outline_rounded,
-                    chipIconColor: AppColors.sageDark,
-                    chipText: 'On track! You can miss up to 2 classes safely.',
-                    chipTextColor: AppColors.sageDark,
-                    isCompact: isShort,
-                  ),
-                  SizedBox(height: isShort ? 7 : 9),
-
-                  // Card 3: English & Communication
-                  _buildLightweightSubjectCard(
-                    iconBadge: const Icon(
-                      Icons.menu_book_rounded,
-                      color: Color(0xFFD9A35B),
-                      size: 18,
-                    ),
-                    iconBg: const Color(0xFFFAF3E8),
-                    title: 'English & Communication',
-                    percentage: '74.1%',
-                    barValue: 0.741,
-                    barColor: AppColors.amber,
-                    chipBg: const Color(0xFFFAF3E8),
-                    chipBorder: const Color(0xFFF5E4CA),
-                    chipIcon: Icons.info_outline_rounded,
-                    chipIconColor: const Color(0xFFB8853E),
-                    chipText: 'Approaching 75% • Attend next class to stay safe.',
-                    chipTextColor: const Color(0xFF9E6E2B),
-                    isCompact: isShort,
-                  ),
-                  SizedBox(height: isShort ? 7 : 9),
-
-                  // Card 4: Science & Lab
-                  _buildLightweightSubjectCard(
-                    iconBadge: const Icon(
-                      Icons.science_rounded,
-                      color: AppColors.ocean,
-                      size: 18,
-                    ),
-                    iconBg: const Color(0xFFEBF3F8),
-                    title: 'Science & Lab',
-                    percentage: '78.6%',
-                    barValue: 0.786,
-                    barColor: AppColors.ocean,
-                    chipBg: const Color(0xFFEBF3F8),
-                    chipBorder: const Color(0xFFD4E3EF),
-                    chipIcon: Icons.check_circle_outline_rounded,
-                    chipIconColor: AppColors.ocean,
-                    chipText: 'Safe margin • 1 safe absence available.',
-                    chipTextColor: AppColors.ocean,
-                    isCompact: isShort,
-                  ),
-                  SizedBox(height: isShort ? 7 : 9),
-
-                  // Card 5: Social Studies
-                  _buildLightweightSubjectCard(
-                    iconBadge: const Icon(
-                      Icons.public_rounded,
-                      color: AppColors.lavender,
-                      size: 18,
-                    ),
-                    iconBg: const Color(0xFFF2EDF8),
-                    title: 'Social Studies',
-                    percentage: '85.0%',
-                    barValue: 0.850,
-                    barColor: AppColors.lavender,
-                    chipBg: const Color(0xFFF2EDF8),
-                    chipBorder: const Color(0xFFDFD4EE),
-                    chipIcon: Icons.verified_rounded,
-                    chipIconColor: AppColors.lavender,
-                    chipText: 'Excellent • 3 safe absences available.',
-                    chipTextColor: AppColors.lavender,
-                    isCompact: isShort,
                   ),
                 ],
               ),
 
-              SizedBox(height: isShort ? 10 : 16),
+              SizedBox(height: isShort ? 14 : 20),
+
+              // Promotional feature highlights
+              Row(
+                children: [
+                  Expanded(
+                    child: _buildMiniPromoPill(
+                      icon: Icons.auto_graph_rounded,
+                      iconColor: const Color(0xFFDE6854),
+                      text: 'Live Target Forecaster',
+                      isShort: isShort,
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: _buildMiniPromoPill(
+                      icon: Icons.security_rounded,
+                      iconColor: AppColors.sageDark,
+                      text: 'Zero Shortage Guarantee',
+                      isShort: isShort,
+                    ),
+                  ),
+                ],
+              ),
+
+              SizedBox(height: isShort ? 8 : 14),
             ],
           ),
         );
@@ -677,116 +636,141 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     );
   }
 
-  Widget _buildLightweightSubjectCard({
-    required Widget iconBadge,
-    required Color iconBg,
-    required String title,
+  Widget _buildSideBySideForecastCard({
+    required String subject,
     required String percentage,
-    required double barValue,
-    required Color barColor,
-    required Color chipBg,
-    required Color chipBorder,
-    required IconData chipIcon,
-    required Color chipIconColor,
-    required String chipText,
-    required Color chipTextColor,
-    bool isCompact = false,
+    required double progress,
+    required Color themeColor,
+    required IconData icon,
+    required Color iconBg,
+    required IconData badgeIcon,
+    required String badgeHeadline,
+    required String badgeDetail,
+    required bool isWarning,
+    required bool isShort,
   }) {
+    final bannerBg =
+        isWarning ? const Color(0xFFFDEEEB) : const Color(0xFFEDF6F1);
+    final bannerBorder =
+        isWarning ? const Color(0xFFF7D1CA) : const Color(0xFFCFE8D9);
+    final headlineColor =
+        isWarning ? const Color(0xFFC7513E) : AppColors.sageDark;
+
     return Container(
-      padding: EdgeInsets.symmetric(
-        horizontal: 13,
-        vertical: isCompact ? 9 : 11,
-      ),
+      padding: EdgeInsets.all(isShort ? 10 : 13),
       decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.88),
-        borderRadius: BorderRadius.circular(16),
+        color: Colors.white.withValues(alpha: 0.94),
+        borderRadius: BorderRadius.circular(18),
         border: Border.all(
-          color: Colors.white.withValues(alpha: 0.95),
-          width: 1.1,
+          color: Colors.white,
+          width: 1.4,
         ),
         boxShadow: const [
           BoxShadow(
-            color: Color.fromRGBO(50, 30, 20, 0.04),
-            blurRadius: 10,
-            offset: Offset(0, 2),
+            color: Color.fromRGBO(50, 30, 20, 0.05),
+            blurRadius: 14,
+            offset: Offset(0, 3),
           ),
         ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          // Icon badge + Percentage
           Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Container(
-                width: isCompact ? 28 : 30,
-                height: isCompact ? 28 : 30,
+                width: isShort ? 28 : 32,
+                height: isShort ? 28 : 32,
                 decoration: BoxDecoration(
                   color: iconBg,
-                  borderRadius: BorderRadius.circular(8),
+                  borderRadius: BorderRadius.circular(9),
                 ),
-                alignment: Alignment.center,
-                child: iconBadge,
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Text(
-                  title,
-                  style: TextStyle(
-                    fontWeight: FontWeight.w700,
-                    fontSize: isCompact ? 12.5 : 13.5,
-                    color: AppColors.ink,
-                  ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
+                child: Icon(icon, size: isShort ? 16 : 18, color: themeColor),
               ),
               Text(
                 percentage,
                 style: TextStyle(
-                  fontWeight: FontWeight.w800,
-                  fontSize: isCompact ? 12.5 : 13.5,
-                  color: AppColors.ink,
+                  fontWeight: FontWeight.w900,
+                  fontSize: isShort ? 13.5 : 15,
+                  color: themeColor,
                 ),
               ),
             ],
           ),
-          SizedBox(height: isShort(isCompact) ? 5 : 7),
+          SizedBox(height: isShort ? 8 : 10),
 
-          // Progress Bar with rounded ends
+          // Subject name
+          Text(
+            subject,
+            style: TextStyle(
+              fontWeight: FontWeight.w800,
+              fontSize: isShort ? 12 : 13.5,
+              color: AppColors.ink,
+              letterSpacing: -0.2,
+            ),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+          SizedBox(height: isShort ? 6 : 8),
+
+          // Progress Bar
           ClipRRect(
-            borderRadius: BorderRadius.circular(3),
+            borderRadius: BorderRadius.circular(4),
             child: LinearProgressIndicator(
-              value: barValue,
-              backgroundColor: barColor.withValues(alpha: 0.16),
-              valueColor: AlwaysStoppedAnimation<Color>(barColor),
-              minHeight: isCompact ? 4.5 : 5.5,
+              value: progress,
+              backgroundColor: themeColor.withValues(alpha: 0.16),
+              valueColor: AlwaysStoppedAnimation<Color>(themeColor),
+              minHeight: isShort ? 4.5 : 5.5,
             ),
           ),
-          SizedBox(height: isShort(isCompact) ? 5 : 7),
+          SizedBox(height: isShort ? 9 : 11),
 
-          // Status Alert Chip
+          // Promotion Pill
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-            decoration: BoxDecoration(
-              color: chipBg.withValues(alpha: 0.75),
-              borderRadius: BorderRadius.circular(7),
-              border: Border.all(color: chipBorder, width: 0.8),
+            width: double.infinity,
+            padding: EdgeInsets.symmetric(
+              horizontal: isShort ? 7 : 9,
+              vertical: isShort ? 7 : 8,
             ),
-            child: Row(
+            decoration: BoxDecoration(
+              color: bannerBg,
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: bannerBorder, width: 1.0),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Icon(chipIcon, size: 12, color: chipIconColor),
-                const SizedBox(width: 6),
-                Expanded(
-                  child: Text(
-                    chipText,
-                    style: TextStyle(
-                      fontSize: isCompact ? 10 : 10.5,
-                      fontWeight: FontWeight.w600,
-                      color: chipTextColor,
+                Row(
+                  children: [
+                    Icon(badgeIcon,
+                        size: isShort ? 13 : 15, color: headlineColor),
+                    const SizedBox(width: 5),
+                    Expanded(
+                      child: Text(
+                        badgeHeadline,
+                        style: TextStyle(
+                          fontSize: isShort ? 10.5 : 11.5,
+                          fontWeight: FontWeight.w800,
+                          color: headlineColor,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
                     ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
+                  ],
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  badgeDetail,
+                  style: TextStyle(
+                    fontSize: isShort ? 9.5 : 10.5,
+                    color: AppColors.inkSecondary,
+                    fontWeight: FontWeight.w500,
                   ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                 ),
               ],
             ),
@@ -796,40 +780,76 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     );
   }
 
-  bool isShort(bool compact) => compact;
+  Widget _buildMiniPromoPill({
+    required IconData icon,
+    required Color iconColor,
+    required String text,
+    required bool isShort,
+  }) {
+    return Container(
+      padding: EdgeInsets.symmetric(
+        horizontal: isShort ? 8 : 12,
+        vertical: isShort ? 7 : 9,
+      ),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.90),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: const Color(0xFFEADBCE), width: 1),
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(icon, size: isShort ? 14 : 16, color: iconColor),
+          const SizedBox(width: 6),
+          Flexible(
+            child: Text(
+              text,
+              style: TextStyle(
+                fontSize: isShort ? 10 : 11,
+                fontWeight: FontWeight.w700,
+                color: AppColors.ink,
+              ),
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 
   // -------------------------------------------------------------
-  // SLIDE 3: Plan Your Semester Effortlessly
-  // Themed header, cohesive Wednesday schedule, Upload Routine & Add Manually
+  // SLIDE 3: Smart Routine & Holiday Sync
+  // Clean, uncluttered showcase of routine import, holiday exclusions, and fast tracking
   // -------------------------------------------------------------
   Widget _buildPageThree() {
     return LayoutBuilder(
       builder: (context, constraints) {
         final availableHeight = constraints.maxHeight;
         final isShort = availableHeight < 620;
+        final isUltraShort = availableHeight < 520;
 
         return SingleChildScrollView(
           physics: const BouncingScrollPhysics(),
-          padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 6),
+          padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 8),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              SizedBox(height: isShort ? 2 : 6),
+              SizedBox(height: isShort ? 4 : 8),
 
               // Title with themed colored word
               Text.rich(
                 TextSpan(
                   style: AppTypography.displayLarge.copyWith(
-                    fontSize: isShort ? 26 : 30,
-                    height: 1.15,
+                    fontSize: isUltraShort ? 24 : (isShort ? 26 : 30),
+                    height: 1.18,
                     fontWeight: FontWeight.w800,
                     fontFamily: 'serif',
                     color: AppColors.ink,
                   ),
                   children: const [
-                    TextSpan(text: 'Plan Your Semester\n'),
+                    TextSpan(text: 'Smart Routine &\n'),
                     TextSpan(
-                      text: 'Effortlessly',
+                      text: 'Holiday Sync',
                       style: TextStyle(
                         color: Color(0xFFDE6854),
                         fontWeight: FontWeight.w900,
@@ -838,242 +858,117 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                   ],
                 ),
               ),
-              SizedBox(height: isShort ? 6 : 8),
+              SizedBox(height: isShort ? 6 : 10),
 
               Text(
-                'Add your subjects, upload your routine or holiday list, and let AttendHub handle all the math.',
+                'Upload your timetable once. AttendHub automatically maps your schedule and excludes all college holidays from conducted totals.',
                 style: AppTypography.bodyLarge.copyWith(
                   fontSize: isShort ? 12.5 : 13.5,
-                  height: 1.3,
+                  height: 1.35,
                   color: AppColors.inkSecondary,
+                  fontWeight: FontWeight.w500,
                 ),
               ),
-              SizedBox(height: isShort ? 12 : 16),
+              SizedBox(height: isUltraShort ? 24 : (isShort ? 38 : 54)),
 
-              // Themed Wednesday Timetable Card
+              // Single Spacious Automation Showcase Card
               Container(
                 width: double.infinity,
-                padding: EdgeInsets.all(isShort ? 12 : 15),
+                padding: EdgeInsets.all(isShort ? 14 : 18),
                 decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: 0.90),
+                  color: Colors.white.withValues(alpha: 0.94),
                   borderRadius: BorderRadius.circular(22),
                   border: Border.all(
-                    color: Colors.white.withValues(alpha: 0.95),
-                    width: 1.2,
+                    color: Colors.white,
+                    width: 1.4,
                   ),
                   boxShadow: const [
                     BoxShadow(
-                      color: Color.fromRGBO(58, 35, 25, 0.04),
-                      blurRadius: 14,
+                      color: Color.fromRGBO(50, 30, 20, 0.05),
+                      blurRadius: 16,
                       offset: Offset(0, 4),
                     ),
                   ],
                 ),
                 child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // Header Row with deep Ink title & terracotta accent
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Row(
-                          children: [
-                            Container(
-                              width: 28,
-                              height: 28,
-                              decoration: BoxDecoration(
-                                color: const Color(0xFFFDEEEB),
-                                borderRadius: BorderRadius.circular(8),
-                              ),
-                              child: const Icon(
-                                Icons.calendar_today_rounded,
-                                size: 15,
-                                color: Color(0xFFDE6854),
-                              ),
-                            ),
-                            const SizedBox(width: 8),
-                            const Text(
-                              'Wednesday Schedule',
-                              style: TextStyle(
-                                fontWeight: FontWeight.w800,
-                                fontSize: 14.5,
-                                color: AppColors.ink,
-                                letterSpacing: -0.2,
-                              ),
-                            ),
-                          ],
-                        ),
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 10, vertical: 4.5),
-                          decoration: BoxDecoration(
-                            color: const Color(0xFFFDEEEB),
-                            borderRadius: BorderRadius.circular(10),
-                            border: Border.all(color: const Color(0xFFF7D1CA)),
-                          ),
-                          child: const Text(
-                            '3 Classes Today',
-                            style: TextStyle(
-                              fontSize: 11,
-                              fontWeight: FontWeight.w700,
-                              color: Color(0xFFDE6854),
-                            ),
-                          ),
-                        ),
-                      ],
+                    _buildSyncFeatureRow(
+                      icon: Icons.document_scanner_rounded,
+                      iconBg: const Color(0xFFEBF3F8),
+                      iconColor: AppColors.ocean,
+                      title: 'Smart Timetable Import',
+                      subtitle:
+                          'Upload timetable image or PDF to auto-map daily class slots',
+                      isShort: isShort,
                     ),
-                    const SizedBox(height: 12),
-
-                    // Routine Items with clear contrast
-                    _buildThemedRoutineItem(
-                      time: '09:30 AM',
-                      title: 'Computer Applications',
-                      venue: 'Lab 3',
-                      status: 'Attended',
-                      statusColor: AppColors.sageDark,
-                      statusBg: const Color(0xFFEDF6F1),
+                    Padding(
+                      padding:
+                          EdgeInsets.symmetric(vertical: isShort ? 10 : 14),
+                      child: const Divider(color: Color(0xFFEDE4DB), height: 1),
                     ),
-                    const SizedBox(height: 8),
-
-                    _buildThemedRoutineItem(
-                      time: '11:15 AM',
-                      title: 'Mathematics',
-                      venue: 'Room 302',
-                      status: 'Current',
-                      statusColor: const Color(0xFFDE6854),
-                      statusBg: const Color(0xFFFDEEEB),
+                    _buildSyncFeatureRow(
+                      icon: Icons.event_available_rounded,
+                      iconBg: const Color(0xFFFAF3E8),
+                      iconColor: AppColors.amber,
+                      title: 'Automatic Holiday Exclusions',
+                      subtitle:
+                          'College holidays & cancelled sessions never reduce your percentage',
+                      isShort: isShort,
                     ),
-                    const SizedBox(height: 8),
-
-                    _buildThemedRoutineItem(
-                      time: '02:00 PM',
-                      title: 'English & Communication',
-                      venue: 'Hall A',
-                      status: 'Upcoming',
-                      statusColor: AppColors.inkSecondary,
-                      statusBg: const Color(0xFFF2ECE4),
+                    Padding(
+                      padding:
+                          EdgeInsets.symmetric(vertical: isShort ? 10 : 14),
+                      child: const Divider(color: Color(0xFFEDE4DB), height: 1),
+                    ),
+                    _buildSyncFeatureRow(
+                      icon: Icons.touch_app_rounded,
+                      iconBg: const Color(0xFFEDF6F1),
+                      iconColor: AppColors.sageDark,
+                      title: '1-Tap Daily Marking',
+                      subtitle:
+                          'Quickly mark Attended, Absent, or Class Not Held in seconds',
+                      isShort: isShort,
                     ),
                   ],
                 ),
               ),
 
-              SizedBox(height: isShort ? 12 : 16),
+              SizedBox(height: isShort ? 16 : 22),
 
-              // Action Cards: Upload Routine vs Add Manually
-              Row(
-                children: [
-                  Expanded(
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                          vertical: 14, horizontal: 12),
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(16),
-                        border: Border.all(
-                            color: const Color(0xFFD4E3EF), width: 1.1),
-                        boxShadow: const [
-                          BoxShadow(
-                            color: Color.fromRGBO(0, 0, 0, 0.03),
-                            blurRadius: 8,
-                            offset: Offset(0, 2),
-                          ),
-                        ],
-                      ),
-                      child: Column(
-                        children: [
-                          Container(
-                            width: 36,
-                            height: 36,
-                            decoration: const BoxDecoration(
-                              color: Color(0xFFEBF3F8),
-                              shape: BoxShape.circle,
-                            ),
-                            child: const Icon(
-                              Icons.cloud_upload_outlined,
-                              color: AppColors.ocean,
-                              size: 20,
-                            ),
-                          ),
-                          const SizedBox(height: 8),
-                          const Text(
-                            'Upload Routine',
-                            style: TextStyle(
-                              fontWeight: FontWeight.w700,
-                              fontSize: 13,
-                              color: AppColors.ink,
-                            ),
-                          ),
-                          const SizedBox(height: 3),
-                          Text(
-                            '(Image / PDF)',
-                            style:
-                                AppTypography.bodySmall.copyWith(fontSize: 11),
-                          ),
-                        ],
-                      ),
-                    ),
+              // Setup in under 2 minutes reassurance pill
+              Center(
+                child: Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.88),
+                    borderRadius: BorderRadius.circular(20),
+                    border:
+                        Border.all(color: const Color(0xFFEADBCE), width: 1),
                   ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                          vertical: 14, horizontal: 12),
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(16),
-                        border: Border.all(
-                            color: const Color(0xFFF5D6CE), width: 1.1),
-                        boxShadow: const [
-                          BoxShadow(
-                            color: Color.fromRGBO(0, 0, 0, 0.03),
-                            blurRadius: 8,
-                            offset: Offset(0, 2),
-                          ),
-                        ],
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(
+                        Icons.bolt_rounded,
+                        size: 17,
+                        color: Color(0xFFDE6854),
                       ),
-                      child: Column(
-                        children: [
-                          Container(
-                            width: 36,
-                            height: 36,
-                            decoration: const BoxDecoration(
-                              color: Color(0xFFFDEEEB),
-                              shape: BoxShape.circle,
-                            ),
-                            child: const Icon(
-                              Icons.add_circle_outline_rounded,
-                              color: Color(0xFFDE6854),
-                              size: 20,
-                            ),
-                          ),
-                          const SizedBox(height: 8),
-                          const Text(
-                            'Add Manually',
-                            style: TextStyle(
-                              fontWeight: FontWeight.w700,
-                              fontSize: 13,
-                              color: AppColors.ink,
-                            ),
-                          ),
-                          const SizedBox(height: 3),
-                          Text(
-                            '(Subject, Time, Venue)',
-                            style:
-                                AppTypography.bodySmall.copyWith(fontSize: 11),
-                          ),
-                        ],
+                      const SizedBox(width: 6),
+                      Text(
+                        'Takes less than 2 minutes to get started',
+                        style: AppTypography.bodySmall.copyWith(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w700,
+                          color: AppColors.ink,
+                        ),
                       ),
-                    ),
+                    ],
                   ),
-                ],
+                ),
               ),
 
-              SizedBox(height: isShort ? 12 : 16),
-
-              // Checklist Item
-              _buildCheckItem('Quick and easy setup'),
-
-              SizedBox(height: isShort ? 10 : 14),
+              SizedBox(height: isShort ? 8 : 14),
             ],
           ),
         );
@@ -1081,95 +976,50 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     );
   }
 
-  Widget _buildThemedRoutineItem({
-    required String time,
+  Widget _buildSyncFeatureRow({
+    required IconData icon,
+    required Color iconBg,
+    required Color iconColor,
     required String title,
-    required String venue,
-    required String status,
-    required Color statusColor,
-    required Color statusBg,
+    required String subtitle,
+    required bool isShort,
   }) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 9),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: const Color(0xFFEDE4DB)),
-      ),
-      child: Row(
-        children: [
-          Text(
-            time,
-            style: const TextStyle(
-              fontSize: 11,
-              fontWeight: FontWeight.w700,
-              color: AppColors.inkSecondary,
-            ),
-          ),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  title,
-                  style: const TextStyle(
-                    fontSize: 12.5,
-                    fontWeight: FontWeight.w700,
-                    color: AppColors.ink,
-                  ),
-                ),
-                Text(
-                  venue,
-                  style: const TextStyle(
-                    fontSize: 10.5,
-                    color: AppColors.inkMuted,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3.5),
-            decoration: BoxDecoration(
-              color: statusBg,
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: Text(
-              status,
-              style: TextStyle(
-                fontSize: 10.5,
-                fontWeight: FontWeight.w700,
-                color: statusColor,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildCheckItem(String text) {
     return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Container(
-          width: 22,
-          height: 22,
-          decoration: const BoxDecoration(
-            color: AppColors.sage,
-            shape: BoxShape.circle,
+          width: isShort ? 36 : 42,
+          height: isShort ? 36 : 42,
+          decoration: BoxDecoration(
+            color: iconBg,
+            borderRadius: BorderRadius.circular(12),
           ),
-          child: const Icon(Icons.check_rounded, size: 14, color: Colors.white),
+          child: Icon(icon, size: isShort ? 20 : 22, color: iconColor),
         ),
-        const SizedBox(width: 10),
+        const SizedBox(width: 14),
         Expanded(
-          child: Text(
-            text,
-            style: AppTypography.bodyMedium.copyWith(
-              fontWeight: FontWeight.w600,
-              fontSize: 12,
-              color: AppColors.ink,
-            ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                title,
+                style: TextStyle(
+                  fontWeight: FontWeight.w800,
+                  fontSize: isShort ? 13 : 14,
+                  color: AppColors.ink,
+                  letterSpacing: -0.2,
+                ),
+              ),
+              const SizedBox(height: 3),
+              Text(
+                subtitle,
+                style: TextStyle(
+                  fontSize: isShort ? 10.5 : 11.5,
+                  color: AppColors.inkSecondary,
+                  height: 1.3,
+                ),
+              ),
+            ],
           ),
         ),
       ],

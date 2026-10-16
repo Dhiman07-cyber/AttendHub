@@ -6,6 +6,7 @@ import '../../../shared/models/subject_model.dart';
 
 class SubjectsState {
   final bool isLoading;
+  final bool hasLoaded;
   final List<SubjectModel> subjects;
   final String searchQuery;
   final bool showInactive;
@@ -13,6 +14,7 @@ class SubjectsState {
 
   SubjectsState({
     this.isLoading = false,
+    this.hasLoaded = true,
     required this.subjects,
     this.searchQuery = '',
     this.showInactive = false,
@@ -32,6 +34,7 @@ class SubjectsState {
 
   SubjectsState copyWith({
     bool? isLoading,
+    bool? hasLoaded,
     List<SubjectModel>? subjects,
     String? searchQuery,
     bool? showInactive,
@@ -39,6 +42,7 @@ class SubjectsState {
   }) {
     return SubjectsState(
       isLoading: isLoading ?? this.isLoading,
+      hasLoaded: hasLoaded ?? this.hasLoaded,
       subjects: subjects ?? this.subjects,
       searchQuery: searchQuery ?? this.searchQuery,
       showInactive: showInactive ?? this.showInactive,
@@ -53,6 +57,8 @@ class SubjectsNotifier extends StateNotifier<SubjectsState> {
 
   SubjectsNotifier()
       : super(SubjectsState(
+          isLoading: true,
+          hasLoaded: false,
           subjects: [],
         )) {
     loadSubjects();
@@ -60,20 +66,30 @@ class SubjectsNotifier extends StateNotifier<SubjectsState> {
 
   Future<void> loadSubjects() async {
     if (!mounted) return;
+    final token = await _storage.getAccessToken();
+    if (!mounted) return;
+    if (token == null || token.isEmpty || token == 'demo_token') {
+      state = state.copyWith(isLoading: false, hasLoaded: true);
+      return;
+    }
     if (state.subjects.isEmpty) {
       final cached = await _storage.getCachedSubjects();
       if (!mounted) return;
       if (cached != null && cached.isNotEmpty) {
         try {
           final cachedList = cached.map((e) => SubjectModel.fromJson(e)).toList();
-          state = state.copyWith(isLoading: false, subjects: cachedList, errorMessage: null);
+          if (!mounted) return;
+          state = state.copyWith(isLoading: false, hasLoaded: true, subjects: cachedList, errorMessage: null);
         } catch (_) {
+          if (!mounted) return;
           state = state.copyWith(isLoading: true, errorMessage: null);
         }
       } else {
+        if (!mounted) return;
         state = state.copyWith(isLoading: true, errorMessage: null);
       }
     } else {
+      if (!mounted) return;
       state = state.copyWith(errorMessage: null);
     }
 
@@ -87,12 +103,13 @@ class SubjectsNotifier extends StateNotifier<SubjectsState> {
         final list = rawList
             .map((e) => SubjectModel.fromJson(Map<String, dynamic>.from(e as Map)))
             .toList();
-        state = state.copyWith(isLoading: false, subjects: list, errorMessage: null);
+        state = state.copyWith(isLoading: false, hasLoaded: true, subjects: list, errorMessage: null);
       }
     } catch (e) {
       if (!mounted) return;
       state = state.copyWith(
         isLoading: false,
+        hasLoaded: true,
         errorMessage: state.subjects.isEmpty ? 'Unable to load subjects from server.' : null,
       );
     }

@@ -4,6 +4,8 @@ import 'package:intl/intl.dart';
 import '../../core/network/api_client.dart';
 import '../../core/network/api_endpoints.dart';
 import '../../core/theme/app_colors.dart';
+import '../../core/theme/time_format_provider.dart';
+import '../../shared/providers/semesters_provider.dart';
 import '../../shared/widgets/app_toast.dart';
 import '../../shared/widgets/landscape_header.dart';
 import '../../shared/widgets/liquid_glass_card.dart';
@@ -68,7 +70,18 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
     );
   }
 
-  String _formatHourDisplay(int hour) {
+  String _normalizeClassType(dynamic raw) {
+    if (raw == null) return 'Others';
+    final s = raw.toString().trim().toUpperCase();
+    if (s == 'LAB') return 'Lab';
+    if (s == 'THEORY') return 'Theory';
+    return 'Others';
+  }
+
+  String _formatHourDisplay(int hour, {bool is24h = false}) {
+    if (is24h) {
+      return '${hour.toString().padLeft(2, '0')}:00';
+    }
     final period = hour >= 12 ? 'PM' : 'AM';
     final displayH = hour > 12 ? hour - 12 : (hour == 0 ? 12 : hour);
     return '$displayH $period';
@@ -134,7 +147,9 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
     final endTime = entry['end_time'] as String? ?? '10:00';
     final room = entry['room'] as String? ?? 'Room 101';
     final faculty = entry['faculty_name'] as String? ?? 'Department Faculty';
-    final classType = entry['class_type'] as String? ?? 'Theory';
+    final classType = _normalizeClassType(entry['class_type']);
+    final is24h = ref.read(timeFormatProvider) == '24h';
+    final formattedSlotTime = formatSlotRange(startTime, endTime, is24h: is24h);
     final colorHex = entry['subject_color'] as String? ?? '#C96E5B';
     final isBreak = subName.toLowerCase().contains('break') || entry['subject_code'] == 'BREAK';
     final accentColor = isBreak ? AppColors.amber : AppColors.getSubjectColor(colorHex);
@@ -214,7 +229,7 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
                       ),
                       const SizedBox(height: 2),
                       Text(
-                        '$dayName (${DateFormat('dd MMM').format(slotDate)}) • $startTime – $endTime',
+                        '$dayName (${DateFormat('dd MMM').format(slotDate)}) • $formattedSlotTime',
                         style: const TextStyle(
                           fontSize: 12,
                           fontWeight: FontWeight.w600,
@@ -242,10 +257,16 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
                   _buildInfoBadge(Icons.coffee_rounded, 'Recess / Break', AppColors.amberDark, AppColors.amberLight)
                 else ...[
                   _buildInfoBadge(
-                    classType.toLowerCase() == 'lab' ? Icons.science_outlined : Icons.menu_book_rounded,
+                    classType.toLowerCase() == 'lab'
+                        ? Icons.science_outlined
+                        : (classType.toLowerCase() == 'theory' ? Icons.menu_book_rounded : Icons.category_outlined),
                     classType,
-                    classType.toLowerCase() == 'lab' ? AppColors.ocean : AppColors.terracotta,
-                    classType.toLowerCase() == 'lab' ? AppColors.oceanLight : AppColors.terracottaLight,
+                    classType.toLowerCase() == 'lab'
+                        ? AppColors.ocean
+                        : (classType.toLowerCase() == 'theory' ? AppColors.terracotta : AppColors.ink),
+                    classType.toLowerCase() == 'lab'
+                        ? AppColors.oceanLight
+                        : (classType.toLowerCase() == 'theory' ? AppColors.terracottaLight : const Color(0xFFEFECE9)),
                   ),
                   _buildInfoBadge(Icons.meeting_room_outlined, room, AppColors.sageDark, AppColors.sageLight),
                   _buildInfoBadge(Icons.person_outline_rounded, faculty, AppColors.inkMuted, const Color(0xFFEFECE9)),
@@ -465,6 +486,7 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
 
       await ref.read(todayProvider.notifier).loadToday();
       ref.invalidate(dashboardProvider);
+      ref.invalidate(selectedDateAttendanceProvider);
       ref.invalidate(subjectsProvider);
       ref.invalidate(analyticsProvider);
 
@@ -544,10 +566,14 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
   @override
   Widget build(BuildContext context) {
     final state = ref.watch(todayProvider);
+    final showSkeleton = !state.hasLoaded ||
+        (state.isLoading && state.timetableEntries.isEmpty) ||
+        (state.isLoadingWeek && state.timetableEntries.isEmpty);
 
     return Scaffold(
       backgroundColor: AppColors.background,
       body: SingleChildScrollView(
+        clipBehavior: Clip.hardEdge,
         padding: const EdgeInsets.only(bottom: 120),
         physics: const AlwaysScrollableScrollPhysics(),
         child: Column(
@@ -560,13 +586,13 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
               semesterInfo: '${state.semesterLabel} • Classes',
               showActions: false,
               topOffset: 76,
-              isLoading: state.isLoading && state.timetableEntries.isEmpty,
+              isLoading: showSkeleton,
             ),
 
             const SizedBox(height: 16),
 
             // Routine Screen Content or Shimmer Skeleton
-            if (state.isLoading && state.timetableEntries.isEmpty)
+            if (showSkeleton)
               _buildWeeklyRoutineSkeleton(context)
             else
               _buildWeeklyRoutineView(context, state),
@@ -717,13 +743,36 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
     final now = DateTime.now();
     final currentDayIdx = now.weekday - 1; // 0=Mon, 6=Sun
     final currentHour = now.hour;
+    final is24h = ref.watch(timeFormatProvider) == '24h';
+
+    // Calculate semester date boundaries for week navigation
+    final activeSem = ref.watch(semestersProvider).activeSemester;
+    DateTime? semStart;
+    DateTime? semEnd;
+    if (activeSem != null) {
+      semStart = DateTime.tryParse(activeSem.startDate);
+      semEnd = DateTime.tryParse(activeSem.endDate);
+    }
+    final startLimit = semStart != null ? DateTime(semStart.year, semStart.month, semStart.day) : null;
+    final endLimit = semEnd != null ? DateTime(semEnd.year, semEnd.month, semEnd.day) : null;
+
+    final todayMidnight = DateTime(now.year, now.month, now.day);
+    final currentMonday = todayMidnight
+        .subtract(Duration(days: todayMidnight.weekday - 1))
+        .add(Duration(days: 7 * state.weekOffset));
+
+    final prevSunday = currentMonday.subtract(const Duration(days: 1));
+    final nextMonday = currentMonday.add(const Duration(days: 7));
+
+    final canGoPrev = startLimit == null || !prevSunday.isBefore(startLimit);
+    final canGoNext = endLimit == null || !nextMonday.isAfter(endLimit);
 
     const double dayColWidth = 64.0;
     const double hourColWidth = 140.0;
     const double slotHeight = 96.0;
 
     // Check if empty
-    if (state.isTimetableEmpty) {
+    if (state.isTimetableEmpty && state.hasLoaded && !state.isLoading && !state.isLoadingWeek) {
       return Padding(
         padding: const EdgeInsets.symmetric(horizontal: 16),
         child: LiquidGlassCard(
@@ -794,10 +843,15 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
             child: Row(
               children: [
                 IconButton(
-                  icon: const Icon(Icons.chevron_left_rounded, color: AppColors.ink),
-                  onPressed: () {
-                    ref.read(todayProvider.notifier).setWeekOffset(state.weekOffset - 1);
-                  },
+                  icon: Icon(
+                    Icons.chevron_left_rounded,
+                    color: canGoPrev ? AppColors.ink : AppColors.inkMuted.withValues(alpha: 0.3),
+                  ),
+                  onPressed: canGoPrev
+                      ? () {
+                          ref.read(todayProvider.notifier).setWeekOffset(state.weekOffset - 1);
+                        }
+                      : null,
                 ),
                 Expanded(
                   child: Column(
@@ -823,10 +877,15 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
                   ),
                 ),
                 IconButton(
-                  icon: const Icon(Icons.chevron_right_rounded, color: AppColors.ink),
-                  onPressed: () {
-                    ref.read(todayProvider.notifier).setWeekOffset(state.weekOffset + 1);
-                  },
+                  icon: Icon(
+                    Icons.chevron_right_rounded,
+                    color: canGoNext ? AppColors.ink : AppColors.inkMuted.withValues(alpha: 0.3),
+                  ),
+                  onPressed: canGoNext
+                      ? () {
+                          ref.read(todayProvider.notifier).setWeekOffset(state.weekOffset + 1);
+                        }
+                      : null,
                 ),
               ],
             ),
@@ -1020,7 +1079,7 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
                                     ),
                                   ),
                                   child: Text(
-                                    _formatHourDisplay(h),
+                                    _formatHourDisplay(h, is24h: is24h),
                                     style: const TextStyle(
                                       fontSize: 11,
                                       fontWeight: FontWeight.w700,
@@ -1218,7 +1277,9 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
     final startTime = entry['start_time'] as String? ?? '09:00';
     final endTime = entry['end_time'] as String? ?? '10:00';
     final room = entry['room'] as String? ?? 'Room 101';
-    final classType = entry['class_type'] as String? ?? 'Theory';
+    final classType = _normalizeClassType(entry['class_type']);
+    final is24h = ref.watch(timeFormatProvider) == '24h';
+    final formattedSlotTime = formatSlotRange(startTime, endTime, is24h: is24h);
     final colorHex = entry['subject_color'] as String? ?? '#C96E5B';
     final isBreak = subName.toLowerCase().contains('break') || entry['subject_code'] == 'BREAK';
     final accentColor = isBreak ? AppColors.amber : AppColors.getSubjectColor(colorHex);
@@ -1283,7 +1344,9 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
                       children: [
                         if (!isBreak) ...[
                           Icon(
-                            classType.toLowerCase() == 'lab' ? Icons.science_outlined : Icons.menu_book_rounded,
+                            classType.toLowerCase() == 'lab'
+                                ? Icons.science_outlined
+                                : (classType.toLowerCase() == 'theory' ? Icons.menu_book_rounded : Icons.category_outlined),
                             size: 9,
                             color: isBreak ? AppColors.amberDark : accentColor,
                           ),
@@ -1365,8 +1428,8 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
                   Expanded(
                     child: Text(
                       isBreak
-                          ? '$startTime-$endTime'
-                          : (room.isNotEmpty ? '$startTime-$endTime • $room' : '$startTime-$endTime'),
+                          ? formattedSlotTime
+                          : (room.isNotEmpty ? '$formattedSlotTime • $room' : formattedSlotTime),
                       style: const TextStyle(fontSize: 9.5, fontWeight: FontWeight.w600, color: AppColors.inkMuted),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
@@ -1457,7 +1520,7 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
                         ),
                       ),
                       Text(
-                        '${liveClass['start_time']} – ${liveClass['end_time']}',
+                        formatSlotRange(liveClass['start_time'] ?? '', liveClass['end_time'] ?? '', is24h: ref.watch(timeFormatProvider) == '24h'),
                         style: const TextStyle(fontSize: 10, color: AppColors.inkMuted, fontWeight: FontWeight.w600),
                       ),
                     ],
@@ -1524,7 +1587,7 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
                         ),
                       ),
                       Text(
-                        'Starts at ${nextClass['start_time']}',
+                        'Starts at ${formatTimeString(nextClass['start_time'] ?? '', is24h: ref.watch(timeFormatProvider) == '24h')}',
                         style: const TextStyle(fontSize: 10, color: AppColors.inkMuted, fontWeight: FontWeight.w600),
                       ),
                     ],

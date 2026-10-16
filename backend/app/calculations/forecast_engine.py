@@ -23,11 +23,14 @@ def enumerate_future_class_dates(
     semester_start: date,
     semester_end: date,
     holidays: List[Tuple[date, date]],
-    forecast_from_date: date,
-    working_days_mask: Optional[Set[int]] = None
+    forecast_from_date: date
 ) -> List[Dict[str, Any]]:
     """
     Enumerate eligible future class occurrences from timetable entries.
+    
+    The forecast derives future classes from actual scheduled timetable entries.
+    If a class is scheduled on a particular weekday, it appears in forecasts.
+    No manual "working days" configuration should filter scheduled classes.
     
     Args:
         timetable_entries: List of recurring timetable slots with day_of_week, start_time, subject_id, class_type
@@ -35,13 +38,10 @@ def enumerate_future_class_dates(
         semester_end: Inclusive semester end date
         holidays: List of (start_date, end_date) tuples for holidays (both inclusive)
         forecast_from_date: Calculate future classes from this date forward (exclusive)
-        working_days_mask: Set of allowed weekday indices (0=Mon, 6=Sun). If None, defaults to Mon-Sat.
     
     Returns:
         List of future class occurrence dicts with date, subject_id, timetable_entry_id, class_type
     """
-    if working_days_mask is None:
-        working_days_mask = {0, 1, 2, 3, 4, 5}  # Mon-Sat default
     
     # Build holiday exclusion set
     excluded_dates: Set[date] = set()
@@ -56,7 +56,7 @@ def enumerate_future_class_dates(
     # For each timetable entry, enumerate its occurrences between forecast_from_date and semester_end
     for entry in timetable_entries:
         day_of_week = entry.get("day_of_week")
-        if day_of_week is None or day_of_week not in working_days_mask:
+        if day_of_week is None:
             continue
         
         subject_id = entry.get("subject_id")
@@ -116,8 +116,7 @@ def calculate_future_classes_count(
     holidays: List[Tuple[date, date]],
     forecast_from_date: date,
     subject_id: Optional[str] = None,
-    class_type_filter: Optional[str] = None,
-    working_days_mask: Optional[Set[int]] = None
+    class_type_filter: Optional[str] = None
 ) -> int:
     """
     Count future eligible class sessions until semester end.
@@ -130,14 +129,13 @@ def calculate_future_classes_count(
         forecast_from_date: Count classes after this date
         subject_id: If provided, count only this subject's classes
         class_type_filter: If provided, count only THEORY or LAB (or UNSPECIFIED)
-        working_days_mask: Allowed weekdays (0=Mon, 6=Sun)
     
     Returns:
         Integer count of future class sessions
     """
     occurrences = enumerate_future_class_dates(
         timetable_entries, semester_start, semester_end, holidays,
-        forecast_from_date, working_days_mask
+        forecast_from_date
     )
     
     # Filter by subject_id if requested
@@ -157,8 +155,7 @@ def calculate_future_class_days_count(
     semester_end: date,
     holidays: List[Tuple[date, date]],
     forecast_from_date: date,
-    subject_id: Optional[str] = None,
-    working_days_mask: Optional[Set[int]] = None
+    subject_id: Optional[str] = None
 ) -> int:
     """
     Count unique future calendar dates that have at least one class session.
@@ -168,7 +165,7 @@ def calculate_future_class_days_count(
     """
     occurrences = enumerate_future_class_dates(
         timetable_entries, semester_start, semester_end, holidays,
-        forecast_from_date, working_days_mask
+        forecast_from_date
     )
     
     if subject_id:
@@ -256,8 +253,7 @@ def calculate_max_future_absences_by_semester_end(
 def calculate_forecast_status(
     semester_start: Optional[date],
     semester_end: Optional[date],
-    timetable_entries: List[Dict[str, Any]],
-    working_days_configured: bool
+    timetable_entries: List[Dict[str, Any]]
 ) -> str:
     """
     Determine forecast completeness/readiness status.
@@ -266,15 +262,11 @@ def calculate_forecast_status(
         - "COMPLETE" if all prerequisites are met
         - "INCOMPLETE_SEMESTER_DATES" if start/end dates missing
         - "INCOMPLETE_TIMETABLE" if no timetable entries
-        - "INCOMPLETE_WORKING_DAYS" if working days not configured
     """
     if not semester_start or not semester_end:
         return "INCOMPLETE_SEMESTER_DATES"
     
     if not timetable_entries or len(timetable_entries) == 0:
         return "INCOMPLETE_TIMETABLE"
-    
-    if not working_days_configured:
-        return "INCOMPLETE_WORKING_DAYS"
     
     return "COMPLETE"

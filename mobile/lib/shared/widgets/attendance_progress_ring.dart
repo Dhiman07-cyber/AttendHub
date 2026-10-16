@@ -57,15 +57,13 @@ class AttendanceProgressRing extends StatelessWidget {
               child: Stack(
                 alignment: Alignment.center,
                 children: [
-                  RepaintBoundary(
-                    child: CustomPaint(
-                      size: Size(ringSize, ringSize),
-                      painter: _RingPainter(
-                        progress: progress,
-                        progressColor: progressColor,
-                        trackColor: progressColor.withValues(alpha: 0.14),
-                        strokeWidth: isCompact ? 6.5 : 9.5,
-                      ),
+                  CustomPaint(
+                    size: Size(ringSize, ringSize),
+                    painter: _RingPainter(
+                      progress: progress,
+                      progressColor: progressColor,
+                      trackColor: progressColor.withValues(alpha: 0.14),
+                      strokeWidth: isCompact ? 6.5 : 9.5,
                     ),
                   ),
                   Padding(

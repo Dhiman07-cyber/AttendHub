@@ -12,6 +12,15 @@ import 'package:attendhub/features/setup/academic_setup_screen.dart';
 import 'package:attendhub/features/imports/routine_import_dialog.dart';
 import 'package:attendhub/features/imports/holiday_import_dialog.dart';
 
+// Helper to find a clickable Material button by its visible label text or key.
+Finder buttonByLabel(String label) {
+  final byKey = find.byKey(const Key('clear_selection_button'));
+  if (byKey.evaluate().isNotEmpty) return byKey;
+  final textFinder = find.text(label);
+  final buttonFinder = find.ancestor(of: textFinder, matching: find.byType(ButtonStyleButton));
+  return buttonFinder.evaluate().isNotEmpty ? buttonFinder : textFinder;
+}
+
 void main() {
   group('AttendHub Persistent Shell Tests', () {
     testWidgets('PersistentTopBar renders fixed controls with title, subtitle, bell, and avatar', (tester) async {
@@ -42,13 +51,11 @@ void main() {
       expect(find.text('D'), findsOneWidget);
 
       // Verify icons
-      expect(find.byIcon(Icons.menu_rounded), findsOneWidget);
+      expect(find.byIcon(Icons.menu_rounded), findsNothing);
+      expect(menuTapped, isFalse);
       expect(find.byIcon(Icons.notifications_none_rounded), findsOneWidget);
 
       // Tap actions
-      await tester.tap(find.byIcon(Icons.menu_rounded));
-      expect(menuTapped, isTrue);
-
       await tester.tap(find.byIcon(Icons.notifications_none_rounded));
       expect(bellTapped, isTrue);
 
@@ -179,7 +186,24 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.text('Step 3/7'), findsOneWidget);
       expect(find.text('Enroll Subjects'), findsOneWidget);
+
+      // Because fresh profiles start with zero hardcoded subjects, enroll test subjects via UI
+      await tester.ensureVisible(find.widgetWithText(AppTextField, 'Subject Name (Required)'));
+      await tester.enterText(find.widgetWithText(AppTextField, 'Subject Name (Required)'), 'Software Engineering');
+      await tester.pumpAndSettle();
+      await tester.ensureVisible(find.text('Add Subject'));
+      await tester.tap(find.text('Add Subject'));
+      await tester.pumpAndSettle();
+
+      await tester.ensureVisible(find.widgetWithText(AppTextField, 'Subject Name (Required)'));
+      await tester.enterText(find.widgetWithText(AppTextField, 'Subject Name (Required)'), 'Operating Systems');
+      await tester.pumpAndSettle();
+      await tester.ensureVisible(find.text('Add Subject'));
+      await tester.tap(find.text('Add Subject'));
+      await tester.pumpAndSettle();
+
       expect(find.text('Software Engineering'), findsOneWidget);
+      expect(find.text('Operating Systems'), findsOneWidget);
 
       // Delete the first subject ('Software Engineering')
       final deleteButtons = find.byIcon(Icons.delete_outline_rounded);
@@ -279,6 +303,15 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.text('Step 3/7'), findsOneWidget);
 
+      // Enroll 'Software Engineering' so timetable slots can be scheduled in Step 4
+      await tester.ensureVisible(find.widgetWithText(AppTextField, 'Subject Name (Required)'));
+      await tester.enterText(find.widgetWithText(AppTextField, 'Subject Name (Required)'), 'Software Engineering');
+      await tester.pumpAndSettle();
+      await tester.ensureVisible(find.text('Add Subject'));
+      await tester.tap(find.text('Add Subject'));
+      await tester.pumpAndSettle();
+      expect(find.text('Software Engineering'), findsOneWidget);
+
       // Advance to Step 4 (Weekly Routine / Timetable)
       await tester.ensureVisible(find.text('Continue to Step 4'));
       await tester.pumpAndSettle();
@@ -311,7 +344,7 @@ void main() {
       expect(find.text('Software Engineering'), findsWidgets);
 
       // Open subject dropdown to verify Break Time is the first option
-      await tester.tap(find.text('Software Engineering').first);
+      await tester.tap(find.descendant(of: find.byType(BottomSheet), matching: find.text('Software Engineering')));
       await tester.pumpAndSettle();
       expect(find.text('Break Time'), findsWidgets);
 
@@ -332,9 +365,10 @@ void main() {
       expect(find.text('End Time'), findsOneWidget);
 
       // Select Practical / Lab (2 hr duration)
+      await tester.ensureVisible(find.text('Practical / Lab'));
       await tester.tap(find.text('Practical / Lab'));
       await tester.pumpAndSettle();
-      expect(find.byIcon(Icons.close_rounded), findsOneWidget);
+      expect(find.descendant(of: find.byType(BottomSheet), matching: find.byIcon(Icons.close_rounded)), findsOneWidget);
 
       // Save Slot
       await tester.ensureVisible(find.text('Add Slot'));
@@ -353,8 +387,8 @@ void main() {
       final scheduledDeco = scheduledSlotContainer.decoration as BoxDecoration?;
       expect(scheduledDeco?.color, equals(AppColors.surface));
 
-      // Tap on the scheduled slot to open edit modal
-      await tester.tap(find.text('Software Engineering'));
+      // Tap edit icon on the scheduled slot to open edit modal
+      await tester.tap(find.byIcon(Icons.edit_outlined));
       await tester.pumpAndSettle();
 
       // Verify Edit modal has Delete Slot at top right
@@ -397,11 +431,8 @@ void main() {
       final mondayOffsetBefore = tester.getTopLeft(find.text('Monday'));
       final hour9OffsetBefore = tester.getTopLeft(find.text('9 AM – 10 AM'));
 
-      // Find horizontal scrollable
-      final horizontalScrollable = find.byType(SingleChildScrollView).last;
-
       // Drag timetable horizontally to the left by 120 pixels
-      await tester.drag(horizontalScrollable, const Offset(-120, 0));
+      await tester.drag(find.text('9 AM – 10 AM'), const Offset(-120, 0), warnIfMissed: false);
       await tester.pumpAndSettle();
 
       // Verify leftmost Day column remained fixed at its exact X coordinate
@@ -411,6 +442,221 @@ void main() {
       // Verify the 9 AM - 10 AM hour column moved to the left
       final hour9OffsetAfter = tester.getTopLeft(find.text('9 AM – 10 AM'));
       expect(hour9OffsetAfter.dx, lessThan(hour9OffsetBefore.dx));
+    });
+
+    testWidgets('Quick-Assign toolbar allows selecting Break Time and enrolled subjects, fast-filling slots directly, and clearing selection with active/disabled button states', (tester) async {
+      await tester.pumpWidget(
+        ProviderScope(
+          child: MaterialApp(
+            theme: AppTheme.lightTheme,
+            home: AcademicSetupScreen(
+              onComplete: () {},
+              onCancel: () {},
+            ),
+          ),
+        ),
+      );
+
+      // Jump to Step 3
+      await tester.tap(find.byKey(const Key('step_segment_2')));
+      await tester.pumpAndSettle();
+      expect(find.text('Step 3/7'), findsOneWidget);
+
+      // Enroll 'Operating Systems' and 'Computer Networks'
+      await tester.ensureVisible(find.widgetWithText(AppTextField, 'Subject Name (Required)'));
+      await tester.enterText(find.widgetWithText(AppTextField, 'Subject Name (Required)'), 'Operating Systems');
+      await tester.pumpAndSettle();
+      await tester.ensureVisible(find.text('Add Subject'));
+      await tester.tap(find.text('Add Subject'));
+      await tester.pumpAndSettle();
+
+      await tester.ensureVisible(find.widgetWithText(AppTextField, 'Subject Name (Required)'));
+      await tester.enterText(find.widgetWithText(AppTextField, 'Subject Name (Required)'), 'Computer Networks');
+      await tester.pumpAndSettle();
+      await tester.ensureVisible(find.text('Add Subject'));
+      await tester.tap(find.text('Add Subject'));
+      await tester.pumpAndSettle();
+
+      // Continue to Step 4
+      await tester.ensureVisible(find.text('Continue to Step 4'));
+      await tester.tap(find.text('Continue to Step 4'));
+      await tester.pumpAndSettle();
+      expect(find.text('Step 4/7'), findsOneWidget);
+
+      // 1. Verify Quick-Assign Toolbar renders
+      expect(find.text('Quick-Assign Tool'), findsOneWidget);
+      expect(find.text('Break Time'), findsWidgets);
+      expect(find.text('Operating Systems'), findsWidgets);
+      expect(find.text('Computer Networks'), findsWidgets);
+      expect(find.text('Edit Mode'), findsNothing);
+
+      // 2. Clear Selection Button starts disabled
+      final clearSelectionBtnFinder = buttonByLabel('Clear Selection');
+      expect(clearSelectionBtnFinder, findsOneWidget);
+      final initialClearBtn = tester.widget<ButtonStyleButton>(clearSelectionBtnFinder);
+      expect(initialClearBtn.onPressed, isNull);
+
+      // 3. Select Break Time
+      await tester.tap(find.text('Break Time').first);
+      await tester.pumpAndSettle();
+
+      // Clear Selection button is now active
+      final activeClearBtn = tester.widget<ButtonStyleButton>(clearSelectionBtnFinder);
+      expect(activeClearBtn.onPressed, isNotNull);
+
+      // 4. Tap an empty slot while Break Time is active -> direct fill without modal
+      final addBoxes = find.text('Quick Add');
+      expect(addBoxes, findsWidgets);
+      await tester.tap(addBoxes.first);
+      await tester.pumpAndSettle();
+
+      // Slot is filled with BREAK badge, no BottomSheet is opened
+      expect(find.byType(BottomSheet), findsNothing);
+      expect(find.text('BREAK'), findsOneWidget);
+
+      // 5. Select 'Operating Systems' directly to switch tool
+      await tester.tap(find.text('Operating Systems').first);
+      await tester.pumpAndSettle();
+      expect(activeClearBtn.onPressed, isNotNull);
+
+      // 6. Tap another empty slot -> directly fast-fills with Operating Systems
+      await tester.tap(addBoxes.first);
+      await tester.pumpAndSettle();
+      expect(find.byType(BottomSheet), findsNothing);
+      expect(find.text('THEORY'), findsOneWidget);
+
+      // 7. Clear selection via Clear Selection button
+      await tester.tap(clearSelectionBtnFinder);
+      await tester.pumpAndSettle();
+
+      // Tool is cleared and button is disabled again
+      final clearedBtn = tester.widget<ButtonStyleButton>(clearSelectionBtnFinder);
+      expect(clearedBtn.onPressed, isNull);
+
+      // 8. Tapping an empty slot without tool opens the modal editor
+      final normalAddBoxes = find.text('Add Class');
+      expect(normalAddBoxes, findsWidgets);
+      await tester.tap(normalAddBoxes.first);
+      await tester.pumpAndSettle();
+      expect(find.byType(BottomSheet), findsOneWidget);
+      expect(find.text('Schedule Class'), findsOneWidget);
+    });
+
+    testWidgets('Quick-Assign re-clicking the same subject on a slot removes it and makes the slot blank', (tester) async {
+      await tester.pumpWidget(
+        ProviderScope(
+          child: MaterialApp(
+            theme: AppTheme.lightTheme,
+            home: AcademicSetupScreen(
+              onComplete: () {},
+              onCancel: () {},
+            ),
+          ),
+        ),
+      );
+
+      // Jump to Step 3 and add subject 'Software Engineering'
+      await tester.tap(find.byKey(const Key('step_segment_2')));
+      await tester.pumpAndSettle();
+      await tester.ensureVisible(find.widgetWithText(AppTextField, 'Subject Name (Required)'));
+      await tester.enterText(find.widgetWithText(AppTextField, 'Subject Name (Required)'), 'Software Engineering');
+      await tester.pumpAndSettle();
+      await tester.ensureVisible(find.text('Add Subject'));
+      await tester.tap(find.text('Add Subject'));
+      await tester.pumpAndSettle();
+
+      // Continue to Step 4
+      await tester.ensureVisible(find.text('Continue to Step 4'));
+      await tester.tap(find.text('Continue to Step 4'));
+      await tester.pumpAndSettle();
+
+      // Select 'Software Engineering' from Quick-Assign toolbar
+      await tester.tap(find.byKey(const Key('quick_tool_Software Engineering')));
+      await tester.pumpAndSettle();
+
+      // Click first empty slot -> Adds Software Engineering (THEORY badge appears)
+      final quickAddBoxes = find.text('Quick Add');
+      expect(quickAddBoxes, findsWidgets);
+      await tester.tap(quickAddBoxes.first);
+      await tester.pumpAndSettle();
+      expect(find.text('THEORY'), findsOneWidget);
+      expect(find.text('Software Engineering'), findsWidgets);
+
+      // Re-click the EXACT SAME slot with Software Engineering still selected in Quick-Assign
+      // Per user requirement: "ensure if same subject is there and is tapped again on same box, it will get removed"
+      await tester.tap(find.byKey(const Key('slot_card_0_9')));
+      await tester.pumpAndSettle();
+
+      // The slot is removed and becomes blank again!
+      expect(find.text('THEORY'), findsNothing);
+      expect(find.textContaining('Removed "Software Engineering"'), findsOneWidget);
+    });
+
+    testWidgets('Slot editor detects 2-hour conflict with adjacent occupied slot and triggers top-right conflict toast', (tester) async {
+      await tester.pumpWidget(
+        ProviderScope(
+          child: MaterialApp(
+            theme: AppTheme.lightTheme,
+            home: AcademicSetupScreen(
+              onComplete: () {},
+              onCancel: () {},
+            ),
+          ),
+        ),
+      );
+
+      // Jump to Step 3 and add 'Theory Sub A' and 'Lab Sub B'
+      await tester.tap(find.byKey(const Key('step_segment_2')));
+      await tester.pumpAndSettle();
+
+      await tester.ensureVisible(find.widgetWithText(AppTextField, 'Subject Name (Required)'));
+      await tester.enterText(find.widgetWithText(AppTextField, 'Subject Name (Required)'), 'Theory Sub A');
+      await tester.pumpAndSettle();
+      await tester.ensureVisible(find.text('Add Subject'));
+      await tester.tap(find.text('Add Subject'));
+      await tester.pumpAndSettle();
+
+      await tester.ensureVisible(find.widgetWithText(AppTextField, 'Subject Name (Required)'));
+      await tester.enterText(find.widgetWithText(AppTextField, 'Subject Name (Required)'), 'Lab Sub B');
+      await tester.pumpAndSettle();
+      await tester.ensureVisible(find.text('Add Subject'));
+      await tester.tap(find.text('Add Subject'));
+      await tester.pumpAndSettle();
+
+      // Go to Step 4
+      await tester.ensureVisible(find.text('Continue to Step 4'));
+      await tester.tap(find.text('Continue to Step 4'));
+      await tester.pumpAndSettle();
+
+      // 1. Fill Box 2 (10 AM slot) with 'Theory Sub A' using Quick-Assign
+      await tester.tap(find.byKey(const Key('quick_tool_Theory Sub A')));
+      await tester.pumpAndSettle();
+
+      // Tap second slot (10 AM)
+      final quickAddBoxes = find.text('Quick Add');
+      await tester.tap(quickAddBoxes.at(1));
+      await tester.pumpAndSettle();
+      expect(find.text('Theory Sub A'), findsWidgets);
+
+      // Clear Quick-Assign so we can open slot modal on Box 1 (9 AM)
+      await tester.tap(buttonByLabel('Clear Selection'));
+      await tester.pumpAndSettle();
+
+      // 2. Tap Box 1 (9 AM) to open modal editor
+      final normalAddBoxes = find.text('Add Class');
+      await tester.tap(normalAddBoxes.first);
+      await tester.pumpAndSettle();
+      expect(find.text('Schedule Class'), findsOneWidget);
+
+      // 3. User attempts to pick 'Practical / Lab' (Default: 2 Hours, 9 AM - 11 AM)
+      // Since Box 2 (10 AM) already holds 'Theory Sub A', booking 2 hours would collide with Box 2!
+      await tester.ensureVisible(find.text('Practical / Lab'));
+      await tester.tap(find.text('Practical / Lab'));
+      await tester.pumpAndSettle();
+
+      // Expect conflict toast to be displayed explaining that 'Theory Sub A' is already booked at 10:00
+      expect(find.textContaining('Cannot schedule 2-hour class'), findsOneWidget);
+      expect(find.textContaining('Theory Sub A'), findsWidgets);
     });
 
     testWidgets('Interactive step pills navigate seamlessly between Step 1 (Academic Profile) and Step 2 (Semester Term) without content mismatch', (tester) async {
@@ -549,6 +795,87 @@ void main() {
 
       draft = await storage.getAcademicSetupDraft('default');
       expect(draft, isNull);
+    });
+
+    testWidgets('Step 3 subjects and Step 4 timetable entries persist to local storage and survive restart', (tester) async {
+      SharedPreferences.setMockInitialValues({});
+      final storage = LocalStorage();
+
+      await tester.pumpWidget(
+        ProviderScope(
+          child: MaterialApp(
+            theme: AppTheme.lightTheme,
+            home: AcademicSetupScreen(
+              onComplete: () {},
+              onCancel: () {},
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      // Navigate to Step 3 (Subjects)
+      await tester.tap(find.byKey(const Key('step_segment_2')));
+      await tester.pumpAndSettle();
+
+      // Add Subject: Operating Systems (code: OS)
+      await tester.enterText(find.widgetWithText(AppTextField, 'Subject Name (Required)'), 'Operating Systems');
+      await tester.enterText(find.widgetWithText(AppTextField, 'Code (Optional)'), 'OS');
+      await tester.ensureVisible(find.text('Add Subject'));
+      await tester.tap(find.text('Add Subject'));
+      await tester.pumpAndSettle();
+
+      // Go to Step 4 (Timetable)
+      await tester.ensureVisible(find.text('Continue to Step 4'));
+      await tester.tap(find.text('Continue to Step 4'));
+      await tester.pumpAndSettle();
+      expect(find.text('Weekly Schedule'), findsOneWidget);
+
+      // Select 'OS' from Quick-Assign toolbar
+      await tester.tap(find.byKey(const Key('quick_tool_OS')));
+      await tester.pumpAndSettle();
+
+      // Click first empty slot (Monday 9 AM) to schedule OS
+      final quickAddBoxes = find.text('Quick Add');
+      expect(quickAddBoxes, findsWidgets);
+      await tester.tap(quickAddBoxes.first);
+      await tester.pumpAndSettle();
+
+      // Verify slot card is visible with 'OS'
+      expect(find.text('OS'), findsWidgets);
+      expect(find.text('THEORY'), findsOneWidget);
+
+      // Check that LocalStorage has the timetable entry immediately
+      final draft = await storage.getAcademicSetupDraft('default');
+      expect(draft, isNotNull);
+      final savedTimetable = draft!['timetable_entries'] as List?;
+      expect(savedTimetable, isNotNull);
+      expect(savedTimetable!.length, 1);
+      expect(savedTimetable.first['subject_name'], 'Operating Systems');
+
+      // Simulate browser reload / restart: unmount and remount fresh screen
+      await tester.pumpWidget(Container());
+      await tester.pumpAndSettle();
+
+      await tester.pumpWidget(
+        ProviderScope(
+          child: MaterialApp(
+            theme: AppTheme.lightTheme,
+            home: AcademicSetupScreen(
+              onComplete: () {},
+              onCancel: () {},
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      // Verify it restored to Step 4 (Timetable) directly from draft
+      expect(find.text('Weekly Schedule'), findsOneWidget);
+      // Verify the restored slot card is present on screen!
+      expect(find.byKey(const Key('slot_card_0_9')), findsOneWidget);
+      expect(find.text('OS'), findsWidgets);
+      expect(find.text('THEORY'), findsOneWidget);
     });
   });
 

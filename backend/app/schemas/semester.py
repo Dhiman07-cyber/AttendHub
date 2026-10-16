@@ -10,13 +10,15 @@ class SemesterCreate(BaseModel):
     end_date: date
     status: Optional[str] = "ACTIVE"
     total_weeks: Optional[int] = 16
-    working_days: Optional[List[int]] = Field(default=[0,1,2,3,4,5], description="Weekday indices: 0=Monday, 6=Sunday")
+    working_days: Optional[List[int]] = Field(default=None, description="DEPRECATED: Not used for forecasts. Weekday indices: 0=Monday, 6=Sunday")
     
     @field_validator('working_days')
     @classmethod
     def validate_working_days(cls, v):
+        if v is None:
+            return None
         if not v:
-            raise ValueError("working_days cannot be empty")
+            return None  # Allow empty list, will default to None
         if not all(isinstance(day, int) and 0 <= day <= 6 for day in v):
             raise ValueError("working_days must contain integers 0-6 (Monday=0, Sunday=6)")
         if len(set(v)) != len(v):
@@ -29,20 +31,20 @@ class SemesterUpdate(BaseModel):
     end_date: Optional[date] = None
     status: Optional[str] = None
     total_weeks: Optional[int] = None
-    working_days: Optional[List[int]] = None
+    working_days: Optional[List[int]] = Field(default=None, description="DEPRECATED: Not used for forecasts")
     
     @field_validator('working_days')
     @classmethod
     def validate_working_days(cls, v):
-        if v is not None:
-            if not v:
-                raise ValueError("working_days cannot be empty")
-            if not all(isinstance(day, int) and 0 <= day <= 6 for day in v):
-                raise ValueError("working_days must contain integers 0-6 (Monday=0, Sunday=6)")
-            if len(set(v)) != len(v):
-                raise ValueError("working_days cannot contain duplicates")
-            return sorted(set(v))
-        return v
+        if v is None:
+            return None
+        if not v:
+            return None  # Allow empty list
+        if not all(isinstance(day, int) and 0 <= day <= 6 for day in v):
+            raise ValueError("working_days must contain integers 0-6 (Monday=0, Sunday=6)")
+        if len(set(v)) != len(v):
+            raise ValueError("working_days cannot contain duplicates")
+        return sorted(set(v))
 
 class SemesterOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)

@@ -25,7 +25,7 @@ class CalendarScreen extends ConsumerWidget {
     final state = ref.watch(calendarProvider);
     final semState = ref.watch(semestersProvider);
 
-    if (state.isLoading && state.days.isEmpty) {
+    if ((!state.hasLoaded || state.isLoading) && state.days.isEmpty) {
       return Scaffold(
         backgroundColor: AppColors.background,
         body: _buildCalendarSkeleton(context),

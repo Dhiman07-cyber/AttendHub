@@ -4,6 +4,7 @@ from typing import Optional, Tuple
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from fastapi import HTTPException, status
+import logging
 
 from app.models.user import User
 from app.models.profile import AcademicProfile
@@ -318,41 +319,66 @@ async def refresh_user_token(db: AsyncSession, refresh_token: str) -> Token:
         full_name=user.full_name
     )
 
+logger = logging.getLogger("attendhub.auth")
+
 async def verify_google_token(id_token: Optional[str] = None, access_token: Optional[str] = None) -> dict:
     """Verify Google OAuth id_token or access_token using Google's public tokeninfo service."""
-    async with httpx.AsyncClient(timeout=10.0) as client:
-        if id_token:
-            resp = await client.get(f"https://oauth2.googleapis.com/tokeninfo?id_token={id_token}")
-            if resp.status_code == 200:
-                data = resp.json()
-                aud = data.get("aud", "")
-                if settings.GOOGLE_CLIENT_ID and aud:
-                    project_prefix = settings.GOOGLE_CLIENT_ID.split("-")[0]
-                    if aud != settings.GOOGLE_CLIENT_ID and not aud.startswith(project_prefix):
-                        raise HTTPException(
-                            status_code=status.HTTP_401_UNAUTHORIZED,
-                            detail="Google token audience does not match configured application."
-                        )
-                if not data.get("email"):
-                    raise HTTPException(
-                        status_code=status.HTTP_400_BAD_REQUEST,
-                        detail="Google account did not return an email address."
-                    )
-                return data
+    try:
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            if id_token:
+                try:
+                    resp = await client.get(f"https://oauth2.googleapis.com/tokeninfo?id_token={id_token}")
+                    if resp.status_code == 200:
+                        data = resp.json()
+                        aud = data.get("aud", "")
+                        if settings.GOOGLE_CLIENT_ID and aud:
+                            project_prefix = settings.GOOGLE_CLIENT_ID.split("-")[0]
+                            if aud != settings.GOOGLE_CLIENT_ID and not aud.startswith(project_prefix):
+                                raise HTTPException(
+                                    status_code=status.HTTP_401_UNAUTHORIZED,
+                                    detail="Google token audience does not match configured application."
+                                )
+                        if not data.get("email"):
+                            raise HTTPException(
+                                status_code=status.HTTP_400_BAD_REQUEST,
+                                detail="Google account did not return an email address."
+                            )
+                        return data
+                    else:
+                        logger.warning(f"Google tokeninfo rejected id_token with status {resp.status_code}: {resp.text}")
+                except HTTPException:
+                    raise
+                except httpx.HTTPError as he:
+                    logger.warning(f"Network error querying Google tokeninfo: {he}")
 
-        if access_token:
-            resp = await client.get(
-                "https://www.googleapis.com/oauth2/v3/userinfo",
-                headers={"Authorization": f"Bearer {access_token}"}
-            )
-            if resp.status_code == 200:
-                data = resp.json()
-                if not data.get("email"):
-                    raise HTTPException(
-                        status_code=status.HTTP_400_BAD_REQUEST,
-                        detail="Google account did not return an email address."
+            if access_token:
+                try:
+                    resp = await client.get(
+                        "https://www.googleapis.com/oauth2/v3/userinfo",
+                        headers={"Authorization": f"Bearer {access_token}"}
                     )
-                return data
+                    if resp.status_code == 200:
+                        data = resp.json()
+                        if not data.get("email"):
+                            raise HTTPException(
+                                status_code=status.HTTP_400_BAD_REQUEST,
+                                detail="Google account did not return an email address."
+                            )
+                        return data
+                    else:
+                        logger.warning(f"Google userinfo rejected access_token with status {resp.status_code}: {resp.text}")
+                except HTTPException:
+                    raise
+                except httpx.HTTPError as he:
+                    logger.warning(f"Network error querying Google userinfo: {he}")
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Unexpected error in verify_google_token: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Failed to verify Google credentials. Please try again."
+        )
 
     raise HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
@@ -382,13 +408,56 @@ async def authenticate_google_user(db: AsyncSession, data: GoogleAuthRequest) ->
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="User account is deactivated."
             )
+        # Self-heal profile or semester if missing
+        prof_stmt = select(AcademicProfile).where(AcademicProfile.user_id == user.id)
+        prof = (await db.execute(prof_stmt)).scalar_one_or_none()
+        sem_stmt = select(Semester).where(Semester.user_id == user.id, Semester.is_active == True)
+        sem = (await db.execute(sem_stmt)).scalar_one_or_none()
+        needs_commit = False
+        if not sem:
+            sem = Semester(
+                user_id=user.id,
+                semester_number=1,
+                label="1st Semester",
+                start_date=date(2026, 8, 1),
+                end_date=date(2026, 12, 20),
+                status="ACTIVE",
+                is_active=True,
+                total_weeks=16
+            )
+            db.add(sem)
+            await db.flush()
+            needs_commit = True
+        if not prof:
+            prof = AcademicProfile(
+                user_id=user.id,
+                university_name="",
+                course_name="",
+                student_id_number=None,
+                academic_duration_years=4,
+                academic_session_start=2024,
+                academic_session_end=2028,
+                current_semester_id=sem.id,
+                minimum_attendance=75.0,
+                personal_target=75.0,
+                low_attendance_alert=70.0
+            )
+            db.add(prof)
+            needs_commit = True
+        elif not prof.current_semester_id:
+            prof.current_semester_id = sem.id
+            needs_commit = True
+
+        if needs_commit:
+            await db.commit()
+            await db.refresh(user)
     else:
         # Register new student user via Google
         initials = "".join([part[0].upper() for part in full_name.split()[:2]]) or "A"
         user = User(
             email=email,
             hashed_password=get_password_hash(uuid.uuid4().hex),
-            full_name=full_name.strip(),
+            full_name=full_name.strip()[:100],
             avatar_initial=initials,
             is_active=True
         )

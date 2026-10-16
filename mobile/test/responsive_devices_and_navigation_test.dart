@@ -10,6 +10,7 @@ import 'package:attendhub/features/dashboard/providers/dashboard_provider.dart';
 import 'package:attendhub/features/analytics/analytics_screen.dart';
 import 'package:attendhub/features/analytics/providers/analytics_provider.dart';
 import 'package:attendhub/shared/models/dashboard_model.dart';
+import 'package:attendhub/shared/models/session_model.dart';
 import 'package:attendhub/shared/models/analytics_model.dart';
 import 'package:attendhub/features/calendar/providers/calendar_provider.dart';
 
@@ -99,7 +100,7 @@ void main() {
 
       expect(find.text('Holidays'), findsOneWidget);
       expect(find.text('Calendar'), findsNothing);
-      expect(find.byIcon(Icons.beach_access_rounded), findsOneWidget);
+      expect(find.byIcon(Icons.event_available_rounded), findsOneWidget);
 
       await tester.tap(find.text('Holidays'));
       expect(tappedIndex, equals(4));
@@ -152,8 +153,8 @@ void main() {
     });
   });
 
-  group('Dashboard Date Selector (No Leaked Today Badge)', () {
-    testWidgets('Dashboard date selector on Yesterday does not render separate Today badge', (tester) async {
+  group("Dashboard Today's Classes Card (All Attended & No Date Dropdown)", () {
+    testWidgets('Dashboard renders Today\'s Classes card with All Attended button and no date dropdown', (tester) async {
       final mockData = DashboardOverviewModel(
         userName: 'Dhiman',
         currentSemesterLabel: '5th Semester',
@@ -170,21 +171,32 @@ void main() {
         semesterProgressPct: 60.0,
         trendFromLastMonth: 2.5,
         todayDateStr: '2026-10-11',
-        todaySessions: [],
+        todaySessions: [
+          ClassSessionModel(
+            id: 'sess-1',
+            semesterId: 'sem-1',
+            subjectId: 'sub-1',
+            subjectName: 'Operating Systems',
+            subjectCode: 'CS501',
+            subjectColor: '#C96E5B',
+            subjectIcon: 'book',
+            date: '2026-10-11',
+            startTime: '09:00',
+            endTime: '10:00',
+            sessionStatus: 'SCHEDULED',
+            isExtra: false,
+            classType: 'THEORY',
+            attendanceStatus: null,
+          ),
+        ],
         subjectsNeedingAttention: [],
         trendPoints: [],
       );
-
-      final yesterday = DateTime.now().subtract(const Duration(days: 1));
 
       await tester.pumpWidget(
         ProviderScope(
           overrides: [
             dashboardProvider.overrideWith((ref) => mockData),
-            selectedDateAttendanceProvider.overrideWith(
-              (ref) => SelectedDateAttendanceNotifier(null, null, null, false)
-                ..selectDate(yesterday),
-            ),
           ],
           child: const MaterialApp(
             home: DashboardScreen(
@@ -199,15 +211,14 @@ void main() {
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 100));
 
-      // Check header shows "Daily Attendance"
-      expect(find.text('Daily Attendance'), findsOneWidget);
-      // Date selector dropdown pill shows Yesterday
-      expect(find.text('Yesterday'), findsOneWidget);
+      // Header shows "Today's Classes"
+      expect(find.text("Today's Classes"), findsOneWidget);
+      // "All Attended" button is rendered
+      expect(find.text('All Attended'), findsOneWidget);
 
-      // Verify that there is NO standalone extra "Today" badge outside the box
-      final allTextWidgets = tester.widgetList<Text>(find.byType(Text));
-      final todayCount = allTextWidgets.where((t) => t.data == 'Today').length;
-      expect(todayCount, equals(0));
+      // Verify old date selector dropdown (Yesterday/Tomorrow pill) is removed
+      expect(find.text('Yesterday'), findsNothing);
+      expect(find.text('Tomorrow'), findsNothing);
     });
   });
 
@@ -251,11 +262,8 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      // Verify Academic Calendar is present in Overview
-      expect(find.text('Academic Calendar'), findsOneWidget);
-      expect(find.text('Sun'), findsOneWidget);
-      expect(find.text('Mon'), findsOneWidget);
-      expect(find.text('Sat'), findsOneWidget);
+      // Verify Academic Calendar is completely removed from Overview
+      expect(find.text('Academic Calendar'), findsNothing);
 
       // Verify "This Semester" badge on Overall Attendance Trend is removed
       expect(find.text('This Semester'), findsNothing);

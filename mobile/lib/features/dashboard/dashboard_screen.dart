@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/storage/local_storage.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_typography.dart';
+import '../../core/theme/time_format_provider.dart';
 import '../../shared/widgets/landscape_header.dart';
 import '../../shared/widgets/liquid_glass_card.dart';
 import '../../shared/widgets/attendance_progress_ring.dart';
@@ -62,6 +64,7 @@ class DashboardScreen extends ConsumerWidget {
   Widget _buildDashboardSkeleton(BuildContext context) {
     return ShimmerLoading(
       child: SingleChildScrollView(
+        clipBehavior: Clip.hardEdge,
         padding: const EdgeInsets.only(bottom: 96),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -406,6 +409,7 @@ class DashboardScreen extends ConsumerWidget {
           : null;
 
       return SingleChildScrollView(
+        clipBehavior: Clip.hardEdge,
         padding: const EdgeInsets.only(bottom: 96),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -428,8 +432,7 @@ class DashboardScreen extends ConsumerWidget {
               final isVeryCompact = screenWidth < 380;
               return Padding(
                 padding: EdgeInsets.symmetric(horizontal: isVeryCompact ? 12 : 16),
-                child: RepaintBoundary(
-                  child: IntrinsicHeight(
+                child: IntrinsicHeight(
                     child: Row(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
@@ -539,10 +542,9 @@ class DashboardScreen extends ConsumerWidget {
                 ],
               ),
             ),
-          ),
-        );
-      },
-    ),
+          );
+        },
+      ),
 
           const SizedBox(height: 16),
 
@@ -984,236 +986,6 @@ class DashboardScreen extends ConsumerWidget {
     }
   }
 
-  String _getDatePillLabel(DateTime date) {
-    final now = DateTime.now();
-    final today = DateTime(now.year, now.month, now.day);
-    final target = DateTime(date.year, date.month, date.day);
-    final diff = target.difference(today).inDays;
-
-    if (diff == 0) return 'Today';
-    if (diff == -1) return 'Yesterday';
-    if (diff == -2) return '2 Days Ago';
-    if (diff == 1) return 'Tomorrow';
-
-    const shortWeekdays = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-    const months = [
-      'Jan',
-      'Feb',
-      'Mar',
-      'Apr',
-      'May',
-      'Jun',
-      'Jul',
-      'Aug',
-      'Sep',
-      'Oct',
-      'Nov',
-      'Dec'
-    ];
-    return '${shortWeekdays[date.weekday - 1]}, ${date.day} ${months[date.month - 1]}';
-  }
-
-  void _showDateSelectorModal(BuildContext context, WidgetRef ref, DateTime currentDate) {
-    final now = DateTime.now();
-    final today = DateTime(now.year, now.month, now.day);
-    final yesterday = today.subtract(const Duration(days: 1));
-    final twoDaysAgo = today.subtract(const Duration(days: 2));
-    final tomorrow = today.add(const Duration(days: 1));
-
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: Colors.transparent,
-      isScrollControlled: true,
-      builder: (ctx) => Container(
-        padding: const EdgeInsets.fromLTRB(20, 20, 20, 32),
-        decoration: const BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.only(
-            topLeft: Radius.circular(24),
-            topRight: Radius.circular(24),
-          ),
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                const Text(
-                  'Select Day',
-                  style: TextStyle(
-                    fontFamily: 'PlayfairDisplay',
-                    fontSize: 18,
-                    fontWeight: FontWeight.w700,
-                    color: AppColors.ink,
-                  ),
-                ),
-                IconButton(
-                  icon: const Icon(Icons.close_rounded, color: AppColors.inkMuted),
-                  onPressed: () => Navigator.pop(ctx),
-                ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            _buildDateOption(
-              ctx: ctx,
-              ref: ref,
-              label: 'Today',
-              date: today,
-              sublabel: 'Marking Open',
-              badgeColor: AppColors.sageDark,
-              badgeBg: AppColors.sageLight,
-              isSelected: _isSameDay(currentDate, today),
-            ),
-            const SizedBox(height: 8),
-            _buildDateOption(
-              ctx: ctx,
-              ref: ref,
-              label: 'Yesterday',
-              date: yesterday,
-              sublabel: 'Editable',
-              badgeColor: AppColors.sageDark,
-              badgeBg: AppColors.sageLight,
-              isSelected: _isSameDay(currentDate, yesterday),
-            ),
-            const SizedBox(height: 8),
-            _buildDateOption(
-              ctx: ctx,
-              ref: ref,
-              label: '2 Days Ago',
-              date: twoDaysAgo,
-              sublabel: 'Editable',
-              badgeColor: AppColors.sageDark,
-              badgeBg: AppColors.sageLight,
-              isSelected: _isSameDay(currentDate, twoDaysAgo),
-            ),
-            const SizedBox(height: 8),
-            _buildDateOption(
-              ctx: ctx,
-              ref: ref,
-              label: 'Tomorrow',
-              date: tomorrow,
-              sublabel: 'View Only (Preview)',
-              badgeColor: AppColors.inkMuted,
-              badgeBg: const Color(0xFFF0ECE9),
-              isSelected: _isSameDay(currentDate, tomorrow),
-            ),
-            const SizedBox(height: 14),
-            SizedBox(
-              width: double.infinity,
-              child: OutlinedButton.icon(
-                icon: const Icon(Icons.calendar_month_outlined, size: 18),
-                label: const Text('Pick Another Date...'),
-                style: OutlinedButton.styleFrom(
-                  foregroundColor: AppColors.terracotta,
-                  side: const BorderSide(color: AppColors.terracotta),
-                  padding: const EdgeInsets.symmetric(vertical: 12),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                ),
-                onPressed: () async {
-                  Navigator.pop(ctx);
-                  final picked = await showDatePicker(
-                    context: context,
-                    initialDate: currentDate,
-                    firstDate: DateTime(now.year - 1),
-                    lastDate: DateTime(now.year + 1),
-                  );
-                  if (picked != null) {
-                    ref.read(selectedDateAttendanceProvider.notifier).selectDate(picked);
-                  }
-                },
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildDateOption({
-    required BuildContext ctx,
-    required WidgetRef ref,
-    required String label,
-    required DateTime date,
-    required String sublabel,
-    required Color badgeColor,
-    required Color badgeBg,
-    required bool isSelected,
-  }) {
-    const shortWeekdays = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-    final weekday = shortWeekdays[date.weekday - 1];
-    final month = months[date.month - 1];
-    final formatted = '$weekday, ${date.day} $month';
-
-    return InkWell(
-      onTap: () {
-        Navigator.pop(ctx);
-        ref.read(selectedDateAttendanceProvider.notifier).selectDate(date);
-      },
-      borderRadius: BorderRadius.circular(12),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-        decoration: BoxDecoration(
-          color: isSelected ? AppColors.terracotta.withValues(alpha: 0.08) : const Color(0xFFFAF7F5),
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(
-            color: isSelected ? AppColors.terracotta.withValues(alpha: 0.4) : AppColors.divider,
-            width: isSelected ? 1.5 : 1.0,
-          ),
-        ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Text(
-                      label,
-                      style: TextStyle(
-                        fontWeight: FontWeight.w700,
-                        fontSize: 14,
-                        color: isSelected ? AppColors.terracotta : AppColors.ink,
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                      decoration: BoxDecoration(
-                        color: badgeBg,
-                        borderRadius: BorderRadius.circular(6),
-                      ),
-                      child: Text(
-                        sublabel,
-                        style: TextStyle(
-                          fontSize: 10,
-                          fontWeight: FontWeight.w700,
-                          color: badgeColor,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 3),
-                Text(
-                  formatted,
-                  style: const TextStyle(fontSize: 11, color: AppColors.inkMuted),
-                ),
-              ],
-            ),
-            if (isSelected)
-              const Icon(Icons.check_circle_rounded, color: AppColors.terracotta, size: 20)
-            else
-              const Icon(Icons.chevron_right_rounded, color: AppColors.inkLight, size: 20),
-          ],
-        ),
-      ),
-    );
-  }
-
   bool _isSameDay(DateTime a, DateTime b) {
     return a.year == b.year && a.month == b.month && a.day == b.day;
   }
@@ -1291,90 +1063,75 @@ class DashboardScreen extends ConsumerWidget {
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16),
-      child: RepaintBoundary(
-        child: LiquidGlassCard(
-          padding: const EdgeInsets.all(18),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Header Row with Date Navigator
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Expanded(
-                    child: Row(
-                      children: [
-                        const Icon(Icons.calendar_today_rounded,
-                            size: 18, color: AppColors.terracotta),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: Text(
-                            isToday ? "Today's Classes" : "Daily Attendance",
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
-                                fontWeight: FontWeight.w700,
-                                fontSize: 15,
-                                color: AppColors.ink),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  // Compact Date Selector
-                  InkWell(
-                    onTap: () => _showDateSelectorModal(
-                        context, ref, dayState.selectedDate),
-                    borderRadius: BorderRadius.circular(20),
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 10, vertical: 5),
-                          decoration: BoxDecoration(
-                            color: isToday
-                                ? AppColors.terracotta.withValues(alpha: 0.1)
-                                : const Color(0xFFF3EFEA),
-                            borderRadius: BorderRadius.circular(20),
-                            border: Border.all(
-                              color: isToday
-                                  ? AppColors.terracotta.withValues(alpha: 0.3)
-                                  : AppColors.divider,
-                            ),
-                          ),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Icon(
-                                Icons.event_outlined,
-                                size: 14,
-                                color: isToday
-                                    ? AppColors.terracotta
-                                    : AppColors.inkSecondary,
-                              ),
-                              const SizedBox(width: 5),
-                              Text(
-                                _getDatePillLabel(dayState.selectedDate),
-                                style: TextStyle(
-                                  fontSize: 11.5,
-                                  fontWeight: FontWeight.w700,
-                                  color: isToday
-                                      ? AppColors.terracotta
-                                      : AppColors.ink,
-                                ),
-                              ),
-                              const SizedBox(width: 3),
-                              Icon(
-                                Icons.arrow_drop_down_rounded,
-                                size: 18,
-                                color: isToday
-                                    ? AppColors.terracotta
-                                    : AppColors.inkSecondary,
-                              ),
-                            ],
-                          ),
+      child: LiquidGlassCard(
+        padding: const EdgeInsets.all(18),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Header Row with All Attended Button
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                const Expanded(
+                  child: Row(
+                    children: [
+                      Icon(Icons.calendar_today_rounded,
+                          size: 18, color: AppColors.terracotta),
+                      SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          "Today's Classes",
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                              fontWeight: FontWeight.w700,
+                              fontSize: 15,
+                              color: AppColors.ink),
                         ),
                       ),
                     ],
                   ),
+                ),
+                // "All Attended" Button (Checks all sessions in draft without auto-saving)
+                if (dayState.isEditable && displayedSessions.isNotEmpty)
+                  InkWell(
+                    onTap: () {
+                      HapticFeedback.lightImpact();
+                      ref.read(selectedDateAttendanceProvider.notifier).markAllAttended(displayedSessions);
+                    },
+                    borderRadius: BorderRadius.circular(12),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                      decoration: BoxDecoration(
+                        color: AppColors.sage.withValues(alpha: 0.12),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(
+                          color: AppColors.sage.withValues(alpha: 0.35),
+                        ),
+                      ),
+                      child: const Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            Icons.done_all_rounded,
+                            size: 15,
+                            color: AppColors.sageDark,
+                          ),
+                          SizedBox(width: 5),
+                          Text(
+                            'All Attended',
+                            style: TextStyle(
+                              fontSize: 11.5,
+                              fontWeight: FontWeight.w700,
+                              color: AppColors.sageDark,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+              ],
+            ),
               const SizedBox(height: 3),
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -1410,7 +1167,7 @@ class DashboardScreen extends ConsumerWidget {
               const SizedBox(height: 16),
 
               // Card Content View
-              if (dayState.isLoading && displayedSessions.isEmpty && !dayState.isHoliday) ...[
+              if ((dayState.isLoading || !dayState.hasLoaded) && displayedSessions.isEmpty && !dayState.isHoliday) ...[
                 _buildSkeletonSessionRow(),
                 const SizedBox(height: 12),
                 _buildSkeletonSessionRow(),
@@ -1426,7 +1183,7 @@ class DashboardScreen extends ConsumerWidget {
                   ),
                   child: Column(
                     children: [
-                      const Icon(Icons.beach_access_rounded,
+                      const Icon(Icons.event_available_rounded,
                           color: AppColors.coral, size: 28),
                       const SizedBox(height: 8),
                       Text(
@@ -1625,7 +1382,7 @@ class DashboardScreen extends ConsumerWidget {
                   shrinkWrap: true,
                   physics: const NeverScrollableScrollPhysics(),
                   itemCount: displayedSessions.length,
-                  separatorBuilder: (_, __) => const SizedBox(height: 12),
+                  separatorBuilder: (_, __) => const SizedBox(height: 10),
                   itemBuilder: (context, index) {
                     final s = displayedSessions[index];
                     return _buildInteractiveSessionRow(
@@ -1750,8 +1507,7 @@ class DashboardScreen extends ConsumerWidget {
             ],
           ),
         ),
-      ),
-    );
+      );
   }
 
   Widget _buildInteractiveSessionRow(
@@ -1844,38 +1600,89 @@ class DashboardScreen extends ConsumerWidget {
 
         // Subject Info
         Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                session.subjectName,
-                style: const TextStyle(
-                    fontWeight: FontWeight.w600,
-                    fontSize: 13,
-                    color: AppColors.ink),
-                softWrap: true,
-              ),
-              const SizedBox(height: 2),
-              Row(
+          child: Builder(
+            builder: (context) {
+              final timeFormat = ref.watch(timeFormatProvider);
+              final is24h = timeFormat == '24h';
+              final formattedTiming = formatSlotRange(
+                session.startTime?.toString(),
+                session.endTime?.toString(),
+                is24h: is24h,
+              );
+              final displayType = session is ClassSessionModel
+                  ? session.displayClassType
+                  : ((session.classType?.toString().toUpperCase() == 'LAB')
+                      ? 'Lab'
+                      : (session.classType?.toString().toUpperCase() == 'THEORY'
+                          ? 'Theory'
+                          : 'Others'));
+
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    '${session.startTime} – ${session.endTime}',
-                    style: AppTypography.bodySmall.copyWith(fontSize: 11),
-                  ),
-                  if (session.facultyName != null) ...[
-                    const SizedBox(width: 8),
-                    Flexible(
-                      child: Text(
-                        '• ${session.facultyName}',
-                        style: AppTypography.bodySmall.copyWith(fontSize: 11),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
+                  Row(
+                    children: [
+                      Flexible(
+                        child: Text(
+                          session.subjectName,
+                          style: const TextStyle(
+                            fontWeight: FontWeight.w700,
+                            fontSize: 13,
+                            color: AppColors.ink,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
                       ),
-                    ),
-                  ],
+                      const SizedBox(width: 6),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
+                        decoration: BoxDecoration(
+                          color: displayType.toLowerCase() == 'lab'
+                              ? AppColors.ocean.withValues(alpha: 0.12)
+                              : (displayType.toLowerCase() == 'theory'
+                                  ? AppColors.terracotta.withValues(alpha: 0.12)
+                                  : const Color(0xFFF0ECE8)),
+                          borderRadius: BorderRadius.circular(5),
+                        ),
+                        child: Text(
+                          displayType,
+                          style: TextStyle(
+                            fontSize: 9.5,
+                            fontWeight: FontWeight.w700,
+                            color: displayType.toLowerCase() == 'lab'
+                                ? AppColors.ocean
+                                : (displayType.toLowerCase() == 'theory'
+                                    ? AppColors.terracotta
+                                    : AppColors.inkSecondary),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 2),
+                  Row(
+                    children: [
+                      Text(
+                        formattedTiming,
+                        style: AppTypography.bodySmall.copyWith(fontSize: 11),
+                      ),
+                      if (session.facultyName != null && session.facultyName.toString().isNotEmpty) ...[
+                        const SizedBox(width: 8),
+                        Flexible(
+                          child: Text(
+                            '• ${session.facultyName}',
+                            style: AppTypography.bodySmall.copyWith(fontSize: 11),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
                 ],
-              ),
-            ],
+              );
+            },
           ),
         ),
 
